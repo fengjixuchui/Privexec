@@ -1,6 +1,7 @@
 ///
 #ifndef PRIVEXEC_CONSOLE_HPP
 #define PRIVEXEC_CONSOLE_HPP
+#include <string_view>
 #include "adapter.hpp"
 
 namespace priv {
@@ -52,6 +53,10 @@ template <typename T>
 T const *Argument(std::basic_string<T> const &value) noexcept {
   return value.c_str();
 }
+template <typename T>
+T const *Argument(std::basic_string_view<T> value) noexcept {
+  return value.data();
+}
 template <typename... Args>
 int StringPrint(wchar_t *const buffer, size_t const bufferCount,
                 wchar_t const *const format, Args const &... args) noexcept {
@@ -64,9 +69,10 @@ template <typename... Args>
 ssize_t Print(int color, const wchar_t *format, Args... args) {
   std::wstring buffer;
   size_t size = StringPrint(nullptr, 0, format, args...);
-  buffer.resize(size);
+  buffer.resize(size + 1);
   size = StringPrint(&buffer[0], buffer.size() + 1, format, args...);
-  return details::adapter::instance().adapterwrite(color, buffer.data(), size);
+  buffer.resize(size);
+  return details::adapter::instance().adapterwrite(color, buffer);
 }
 
 template <typename... Args>
@@ -76,10 +82,10 @@ ssize_t Verbose(bool verbose, const wchar_t *format, Args... args) {
   }
   std::wstring buffer;
   size_t size = StringPrint(nullptr, 0, format, args...);
-  buffer.resize(size);
+  buffer.resize(size + 1);
   size = StringPrint(&buffer[0], buffer.size() + 1, format, args...);
-  return details::adapter::instance().adapterwrite(priv::fc::Yellow,
-                                                   buffer.data(), size);
+  buffer.resize(size);
+  return details::adapter::instance().adapterwrite(priv::fc::Yellow, buffer);
 }
 
 // ChangePrintMode todo

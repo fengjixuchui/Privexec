@@ -1,10 +1,9 @@
 # Privexec
 
-<!--[![release.badge]][release.link]
-[![latestdownloads.badge]][latestdownloads.link]
-[![totaldownloads.badge]][totaldownloads.link]-->
-[![license.badge]][license.link]
-[![Build status](https://ci.appveyor.com/api/projects/status/2cbd4pceqbldlixx/branch/master?svg=true)](https://ci.appveyor.com/project/fcharlie/privexec/branch/master) <a href="https://996.icu"><img src="https://img.shields.io/badge/link-996.icu-red.svg"></a>
+
+[![license badge](https://img.shields.io/github/license/M2Team/Privexec.svg)](LICENSE)
+[![Build status](https://ci.appveyor.com/api/projects/status/2cbd4pceqbldlixx/branch/master?svg=true)](https://ci.appveyor.com/project/fcharlie/privexec/branch/master)
+[![996.icu](https://img.shields.io/badge/link-996.icu-red.svg)](https://996.icu)
 
 
 Run the program with the specified permission level
@@ -80,15 +79,14 @@ wsudo is a console command client
 **wsudo usage:**
 
 ```txt
-wsudo ♥ run the program with the specified permissions
-usage: wsudo command args....
+wsudo 😋 ♥ run the program with the specified permissions
+usage: wsudo command args...
    -v|--version        print version and exit
    -h|--help           print help information and exit
    -u|--user           run as user (optional), support '-uX', '-u X', '--user=X', '--user X'
                        Supported user categories (Ignore case):
-                       AppContainer  MIC
-                       NoElevated    Administrator
-                       System        TrustedInstaller
+                       AppContainer    MIC       NoElevated
+                       Administrator   System    TrustedInstaller
 
    -n|--new-console    Starts a separate window to run a specified program or command.
    -H|--hide           Hide child process window. not wait. (CREATE_NO_WINDOW)
@@ -99,18 +97,15 @@ usage: wsudo command args....
    -e|--env            Set Environment Variable.
    -L|--lpac           Less Privileged AppContainer mode.
    --disable-alias     Disable Privexec alias, By default, if Privexec exists alias, use it.
+   --appname           Set AppContainer Name
 
 Select user can use the following flags:
-   -a                  AppContainer
-   -M                  Mandatory Integrity Control
-   -U                  No Elevated(UAC)
-   -A                  Administrator
-   -S                  System
-   -T                  TrustedInstaller
+   |-a  AppContainer    |-M  Mandatory Integrity Control|-U  No Elevated(UAC)|
+   |-A  Administrator   |-S  System                     |-T  TrustedInstaller|
 Example:
    wsudo -A "%SYSTEMROOT%/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile
    wsudo -T cmd
-   wsudo -U -V CURL_SSL_BACKEND=schannel curl --verbose  -I https://nghttp2.org
+   wsudo -U -V --env CURL_SSL_BACKEND=schannel curl --verbose  -I https://nghttp2.org
 
 Builtin 'alias' command:
    wsudo alias add ehs "notepad %SYSTEMROOT%/System32/drivers/etc/hosts" "Edit Hosts"
@@ -130,7 +125,6 @@ wsudo support `-e/--env` to set environment. such as:
 
 ```batch
 ::curl must enabled multiple SSL backends.
-wsudo  -U -V CURL_SSL_BACKEND=schannel curl --verbose  -I https://nghttp2.org
 wsudo  -U -V --env CURL_SSL_BACKEND=schannel curl --verbose  -I https://nghttp2.org
 ```
 
@@ -138,12 +132,12 @@ Environment variables are deduced in cmd, so be careful to use quotes. In powers
 
 ```powershell
 # powershell
-.\bin\wsudo.exe -n 'PATH=%PATH%;%TEMP%' -U cmd
+.\bin\wsudo.exe -n -e 'PATH=%PATH%;%TEMP%' -U cmd
 ```
 
 ```batch
 ::cmd
-wsudo "PATH=%PATH%;%TEMP%" -n -U cmd
+wsudo -e "PATH=%PATH%;%TEMP%" -n -U cmd
 ```
 
 
@@ -160,13 +154,3 @@ see: [changelog.md](./docs/changelog.md)
 ## LICENSE
 
 This project use MIT License, and JSON use [https://github.com/nlohmann/json](https://github.com/nlohmann/json) , some API use NSudo, but rewrite it.
-
-
-[release.badge]: https://img.shields.io/github/release/M2Team/Privexec.svg
-[release.link]: https://github.com/M2Team/Privexec/releases/latest
-[latestdownloads.badge]: https://img.shields.io/github/downloads/M2Team/Privexec/latest/total.svg
-[latestdownloads.link]: https://github.com/M2Team/Privexec/releases/latest
-[totaldownloads.badge]: https://img.shields.io/github/downloads/M2Team/Privexec/total.svg
-[totaldownloads.link]: https://github.com/M2Team/Privexec/releases
-[license.badge]: https://img.shields.io/github/license/M2Team/Privexec.svg
-[license.link]: LICENSE
