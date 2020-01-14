@@ -16,7 +16,7 @@
 #define PRIVSUBVER TOSTR(PRIVEXEC_BUILD_NUMBER)
 
 #define PRIVEXEC_MAJOR_VERSION 2
-#define PRIVEXEC_MINOR_VERSION 3
+#define PRIVEXEC_MINOR_VERSION 5
 #define PRIVEXEC_PATCH_VERSION 0
 
 #define PRIV_MAJOR TOSTR(PRIVEXEC_MAJOR_VERSION)
@@ -41,8 +41,11 @@
   L"Ask for help with this issue. \nVisit: <a "                                \
   L"href=\"https://github.com/M2Team/Privexec/issues\">Privexec Issues</a>"
 
+#define PRIVEXEC_COPYRIGHT                                                     \
+  L"Copyright \xA9 2020, Force Charlie. All Rights Reserved."
+
 #define PRIVEXEC_APPVERSION                                                    \
-  L"Version: " PRIV_VERSION_FULL L"\nCopyright \xA9 2019, Force "              \
+  L"Version: " PRIV_VERSION_FULL L"\nCopyright \xA9 2020, Force "              \
   L"Charlie. All Rights Reserved."
 
 #endif

@@ -1,5 +1,5 @@
 # Privexec cmake
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.14)
 
 project(Privexec CXX)
 
@@ -16,7 +16,7 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/lib)
 
 set(PRIVEXEC_VERSION_MAJOR 2)
-set(PRIVEXEC_VERSION_MINOR 3)
+set(PRIVEXEC_VERSION_MINOR 5)
 set(PRIVEXEC_VERSION_PATCH 0)
 set(PACKAGE_VERSION "${PRIVEXEC_VERSION_MAJOR}.${PRIVEXEC_VERSION_MINOR}.${PRIVEXEC_VERSION_PATCH}")
 
@@ -43,7 +43,7 @@ endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
-
+set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -c65001")
 add_definitions(
   -D_UNICODE=1
   -DUNICODE=1
@@ -51,17 +51,22 @@ add_definitions(
 
 include_directories(
   ./include
+  ./vendor/bela/include
+  ./vendor/pugixml
+  ./lib/ProcessCore
 )
 
 configure_file(
-  "Privexec/Privexec.json"
+  "config/Privexec.json"
   "${CMAKE_BINARY_DIR}/bin/Privexec.json" COPYONLY
 )
 
-install(FILES Privexec/Privexec.json
+install(FILES config/Privexec.json
     DESTINATION .
 )
-
+add_subdirectory(vendor/bela)
+add_subdirectory(lib/ProcessCore)
 add_subdirectory(AppExec)
 add_subdirectory(Privexec)
 add_subdirectory(wsudo)
+add_subdirectory(test/apc)

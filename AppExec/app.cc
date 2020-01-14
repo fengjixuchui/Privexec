@@ -1,5 +1,8 @@
 ///
-#include <process/process.hpp>
+#include <process.hpp>
+#include <bela/env.hpp>
+#include <bela/path.hpp>
+#include <bela/match.hpp>
 #include "app.hpp" // included windows.h
 #include <Windowsx.h>
 // C RunTime Header Files
@@ -8,22 +11,13 @@
 #include <commdlg.h>
 #include <objbase.h>
 #include <Shlwapi.h>
-#include "apputils.hpp"
+#include <shellapi.h>
+#include <bela/picker.hpp>
 #include "resource.h"
 
 namespace priv {
 
 // expand env
-inline std::wstring ExpandEnv(const std::wstring &s) {
-  auto len = ExpandEnvironmentStringsW(s.data(), nullptr, 0);
-  if (len <= 0) {
-    return s;
-  }
-  std::wstring s2(len + 1, L'\0');
-  auto N = ExpandEnvironmentStringsW(s.data(), &s2[0], len + 1);
-  s2.resize(N - 1);
-  return s2;
-}
 
 int App::run(HINSTANCE hInstance) {
   hInst = hInstance;
@@ -140,47 +134,17 @@ bool App::AppTheme() {
 
 std::wstring App::ResolveCMD() {
   auto cmd_ = cmd.Content();
-  return ExpandEnv(cmd_);
+  return bela::ExpandEnv(cmd_);
 }
 
 std::wstring App::ResolveCWD() {
-  auto cwd_ = ExpandEnv(cwd.Content());
+  auto cwd_ = bela::ExpandEnv(cwd.Content());
   if (!cwd_.empty() &&
       (GetFileAttributesW(cwd_.c_str()) & FILE_ATTRIBUTE_DIRECTORY) != 0) {
     /// resolved cwd  valid
     return cwd_;
   }
-  auto N = GetCurrentDirectoryW(0, nullptr);
-  if (N <= 0) {
-    return L"";
-  }
-  cwd_.resize(N + 1);
-  N = GetCurrentDirectoryW(N + 1, &cwd_[0]);
-  cwd_.resize(N);
-  return cwd_;
-}
-
-std::vector<std::wstring_view> PathSplit(std::wstring_view sv) {
-  std::vector<std::wstring_view> output;
-  size_t first = 0;
-  while (first < sv.size()) {
-    const auto second = sv.find_first_of(L'\\', first);
-    if (first != second) {
-      auto s = sv.substr(first, second - first);
-      if (s == L"..") {
-        if (!output.empty()) {
-          output.pop_back();
-        }
-      } else if (s != L".") {
-        output.emplace_back(s);
-      }
-    }
-    if (second == std::wstring_view::npos) {
-      break;
-    }
-    first = second + 1;
-  }
-  return output;
+  return L"";
 }
 
 std::vector<std::wstring_view> NewlineTokenize(std::wstring_view sv) {
@@ -206,15 +170,15 @@ std::vector<std::wstring_view> NewlineTokenize(std::wstring_view sv) {
 }
 
 bool IsRegistryKey(std::wstring_view path) {
-  auto pv = PathSplit(path);
+  auto pv = bela::SplitPath(path);
   if (pv.empty()) {
     return false;
   }
-  const wchar_t *keys[] = {
+  constexpr std::wstring_view keys[] = {
       L"HKEY_CLASSES_ROOT",  L"HKCR", L"HKEY_CURRENT_USER", L"HKCU",
       L"HKEY_LOCAL_MACHINE", L"HKLM", L"HKEY_USERS",        L"HKU"};
   for (auto k : keys) {
-    if (_wcsnicmp(k, pv[0].data(), pv[0].size()) == 0) {
+    if (bela::EqualsIgnoreCase(k, pv[0])) {
       return true;
     }
   }
@@ -233,10 +197,10 @@ bool App::AppLookupAcl(std::vector<std::wstring> &fsdir,
   for (auto d : dirs) {
     if (IsRegistryKey(d)) {
       trace.Append(L"Registry Access", d);
-      registries.push_back(std::wstring(d));
+      registries.emplace_back(d);
     } else {
-      fsdir.push_back(std::wstring(d));
       trace.Append(L"Fs Access", d);
+      fsdir.emplace_back(d);
     }
   }
   return true;
@@ -246,8 +210,8 @@ bool App::AppExecute() {
   trace.Clear();
   auto cmd_ = ResolveCMD();
   if (cmd_.empty()) {
-    utils::PrivMessageBox(hWnd, L"Please input command line", L"command empty",
-                          PRIVEXEC_APPLINKE, utils::kFatalWindow);
+    bela::BelaMessageBox(hWnd, L"Please input command line", L"command empty",
+                         PRIVEXEC_APPLINKE, bela::mbs_t::FATAL);
     return false;
   }
   trace.Append(L"Command", cmd_);
@@ -257,33 +221,32 @@ bool App::AppExecute() {
     trace.Append(L"CurrentDir", cwd_);
   }
   auto cas = appx.Capabilities();
-  priv::appcontainer p(cmd_);
-  p.enablelpac(appx.IsLowPrivilegeAppContainer());
-  p.cwd().assign(cwd_);
-  p.name().assign(appx.AppContainerName());
-  AppLookupAcl(p.alloweddirs(), p.registries());
-  if (!p.initialize(cas) || !p.execute()) {
-    auto ec = base::make_system_error_code();
-    if (!p.message().empty()) {
-      ec.message.append(L" (").append(p.message()).append(L")");
+  priv::AppContainer p(cmd_);
+  p.EnableLPAC(appx.IsLowPrivilegeAppContainer());
+  p.Chdir(cwd_);
+  p.Name(appx.AppContainerName());
+  AppLookupAcl(p.AllowedDirs(), p.Registries());
+  if (!p.Initialize({cas.data(), cas.size()}) || !p.Exec()) {
+    auto ec = bela::make_system_error_code();
+    if (!p.Message().empty()) {
+      bela::StrAppend(&ec.message, L"(", p.Message(), L")");
     }
-    utils::PrivMessageBox(hWnd, L"Appexec create appconatiner process failed",
-                          ec.message.c_str(), PRIVEXEC_APPLINKE,
-                          utils::kFatalWindow);
+    bela::BelaMessageBox(hWnd, L"Appexec create appconatiner process failed",
+                         ec.message.data(), PRIVEXEC_APPLINKE,
+                         bela::mbs_t::FATAL);
     return false;
   }
-  trace.Append(L"AppContainer Name", p.name());
-  trace.Append(L"AppContainer SID", p.strid());
-  trace.Append(L"AppContainer Folder", p.conatinerfolder());
+  trace.Append(L"AppContainer Name", p.Name());
+  trace.Append(L"AppContainer SID", p.SSID());
+  trace.Append(L"AppContainer Folder", p.ConatinerFolder());
   return true;
 }
 
 bool App::AppLookupExecute() {
-  const utils::filter_t filters[] = {
+  const bela::filter_t filters[] = {
       {L"Windows Execute(*.exe;*.com;*.bat)", L"*.exe;*.com;*.bat"},
       {L"All Files (*.*)", L"*.*"}};
-  auto exe =
-      utils::PrivFilePicker(hWnd, L"Privexec: Select Execute", filters, 2);
+  auto exe = bela::FilePicker(hWnd, L"Privexec: Select Execute", filters);
   if (exe) {
     cmd.Update(*exe);
     return true;
@@ -293,7 +256,7 @@ bool App::AppLookupExecute() {
 
 bool App::AppLookupCWD() {
   auto folder =
-      utils::PrivFolderPicker(hWnd, L"Appexec: Select App Launcher Folder");
+      bela::FolderPicker(hWnd, L"Appexec: Select App Launcher Folder");
   if (folder) {
     cwd.Update(*folder);
     return true;
@@ -341,9 +304,9 @@ INT_PTR App::MessageHandler(UINT message, WPARAM wParam, LPARAM lParam) {
   case WM_SYSCOMMAND:
     switch (LOWORD(wParam)) {
     case IDM_APPEXEC_ABOUT:
-      utils::PrivMessageBox(hWnd, L"About AppContainer Exec",
-                            PRIVEXEC_APPVERSION, PRIVEXEC_APPLINK,
-                            utils::kAboutWindow);
+      bela::BelaMessageBox(hWnd, L"About AppContainer Exec",
+                           PRIVEXEC_APPVERSION, PRIVEXEC_APPLINK,
+                           bela::mbs_t::ABOUT);
       break;
     case IDM_APPTHEME:
       AppTheme();
@@ -356,12 +319,13 @@ INT_PTR App::MessageHandler(UINT message, WPARAM wParam, LPARAM lParam) {
     // WM_COMMAND
     switch (LOWORD(wParam)) {
     case IDB_APPX_IMPORT: {
-      const utils::filter_t filters[] = {
+
+      const bela::filter_t filters[] = {
           {L"Windows Appxmanifest (*.appxmanifest;*.xml)",
            L"*.appxmanifest;*.xml"},
           {L"All Files (*.*)", L"*.*"}};
-      auto xml = utils::PrivFilePicker(hWnd, L"AppExec: Select AppManifest",
-                                       filters, 2);
+      auto xml =
+          bela::FilePicker(hWnd, L"AppExec: Select AppManifest", filters);
       if (xml) {
         ParseAppx(*xml);
       }

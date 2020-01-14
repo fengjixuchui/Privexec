@@ -4,7 +4,7 @@
 #include <functional>
 #include <vector>
 //
-#include "strcat.hpp"
+#include <bela/strcat.hpp>
 
 namespace av {
 enum ParseError {
@@ -23,8 +23,8 @@ struct error_code {
   }
   template <typename... Args> void Assign(int val, Args... args) {
     ec = val;
-    message = base::strings_internal::CatPieces(
-        {static_cast<const base::AlphaNum &>(args).Piece()...});
+    message = bela::strings_internal::CatPieces(
+        {static_cast<const bela::AlphaNum &>(args).Piece()...});
   }
 };
 enum HasArgs {
@@ -32,7 +32,7 @@ enum HasArgs {
   no_argument,
   optional_argument /// -s --long --long=xx
 };
-constexpr const int NoneVal = 0;
+[[maybe_unused]] constexpr const int NoneVal = 0;
 struct option {
   std::wstring_view name;
   HasArgs has_args;
