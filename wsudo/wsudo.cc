@@ -237,7 +237,7 @@ bool IsConsoleSuffix(std::wstring_view path) {
   return false;
 }
 
-bool AppSubsystemIsConsole(std::wstring_view cmd, bool aliasexpand,
+bool AppSubsystemIsConsole(std::wstring &cmd, bool aliasexpand,
                            const AppMode &am) {
   if (!aliasexpand) {
     std::wstring exe;
@@ -246,13 +246,17 @@ bool AppSubsystemIsConsole(std::wstring_view cmd, bool aliasexpand,
       return false;
     }
     bela::error_code ec;
-    auto pe = bela::PESimpleDetailsAze(exe, ec);
+    auto pe = bela::pe::Expose(exe, ec);
     if (!pe) {
       am.Verbose(L"\x1b[01;33m* Not PE File '%s'\x1b[0m\n", exe);
-      return IsConsoleSuffix(exe);
+      if (IsConsoleSuffix(exe)) {
+        cmd.assign(exe);
+        return true;
+      }
+      return false;
     }
     am.Verbose(L"\x1b[01;33m* App real argv0 '%s'\x1b[0m\n", exe);
-    return pe->subsystem == bela::Subsytem::CUI;
+    return pe->subsystem == bela::pe::Subsystem::CUI;
   }
   int Argc;
   auto Argv = CommandLineToArgvW(cmd.data(), &Argc);
@@ -268,13 +272,13 @@ bool AppSubsystemIsConsole(std::wstring_view cmd, bool aliasexpand,
   LocalFree(Argv);
   am.Verbose(L"\x1b[01;33m* App real path '%s'\x1b[0m\n", exe);
   bela::error_code ec;
-  auto pe = bela::PESimpleDetailsAze(exe, ec);
+  auto pe = bela::pe::Expose(exe, ec);
   if (!pe) {
     am.Verbose(L"\x1b[01;33m* Not PE File '%s'\x1b[0m\n", exe);
     return IsConsoleSuffix(exe);
   }
   am.Verbose(L"\x1b[01;33m* App real argv0 '%s'\x1b[0m\n", exe);
-  return pe->subsystem == bela::Subsytem::CUI;
+  return pe->subsystem == bela::pe::Subsystem::CUI;
 }
 
 } // namespace wsudo
@@ -335,14 +339,14 @@ int AppExecuteAppContainer(wsudo::AppMode &am) {
   bela::EscapeArgv ea;
   bool aliasexpand = false;
   auto argv0 = ExpandArgv0(am.args[0], am.disablealias, am, aliasexpand);
+  auto isconsole = wsudo::AppSubsystemIsConsole(argv0, aliasexpand, am);
+  bool waitable = false;
   if (aliasexpand) {
     ea.AssignNoEscape(argv0);
   } else {
     ea.Assign(argv0);
   }
-  auto isconsole = wsudo::AppSubsystemIsConsole(argv0, aliasexpand, am);
-  bool waitable = false;
-
+  am.Verbose(L"\x1b[01;33m* App real arg0 '%s'\x1b[0m\n", argv0);
   if (am.visible == priv::VisibleMode::None && isconsole || am.wait) {
     waitable = true;
   }
@@ -521,12 +525,13 @@ int AppExecute(wsudo::AppMode &am) {
   bela::EscapeArgv ea;
   bool aliasexpand = false;
   auto argv0 = ExpandArgv0(am.args[0], am.disablealias, am, aliasexpand);
+  auto isconsole = wsudo::AppSubsystemIsConsole(argv0, aliasexpand, am);
   if (aliasexpand) {
     ea.AssignNoEscape(argv0);
   } else {
     ea.Assign(argv0);
   }
-  auto isconsole = wsudo::AppSubsystemIsConsole(argv0, aliasexpand, am);
+  am.Verbose(L"\x1b[01;33m* App real arg0 '%s'\x1b[0m\n", argv0);
   auto elevated = priv::IsUserAdministratorsGroup();
   // If wsudo-tie exists. we will use wsudo-tie as administrator proxy
   if (!elevated && am.level == priv::ExecLevel::Elevated && isconsole &&
