@@ -40,21 +40,19 @@ wchar_t *FastIntToBuffer(uint64_t, wchar_t *);
 
 // For enums and integer types that are not an exact match for the types above,
 // use templates to call the appropriate one of the four overloads above.
-template <typename int_type>
-wchar_t *FastIntToBuffer(int_type i, wchar_t *buffer) {
-  static_assert(sizeof(i) <= 64 / 8,
-                "FastIntToBuffer works only with 64-bit-or-less integers.");
+template <typename int_type> wchar_t *FastIntToBuffer(int_type i, wchar_t *buffer) {
+  static_assert(sizeof(i) <= 64 / 8, "FastIntToBuffer works only with 64-bit-or-less integers.");
   // TODO(jorg): This signed-ness check is used because it works correctly
   // with enums, and it also serves to check that int_type is not a pointer.
   // If one day something like std::is_signed<enum E> works, switch to it.
-  if (static_cast<int_type>(1) - 2 < 0) { // Signed
-    if (sizeof(i) > 32 / 8) {             // 33-bit to 64-bit
+  if constexpr (static_cast<int_type>(1) - 2 < 0) { // Signed
+    if constexpr (sizeof(i) > 32 / 8) {             // 33-bit to 64-bit
       return FastIntToBuffer(static_cast<int64_t>(i), buffer);
     } else { // 32-bit or less
       return FastIntToBuffer(static_cast<int32_t>(i), buffer);
     }
-  } else {                    // Unsigned
-    if (sizeof(i) > 32 / 8) { // 33-bit to 64-bit
+  } else {                              // Unsigned
+    if constexpr (sizeof(i) > 32 / 8) { // 33-bit to 64-bit
       return FastIntToBuffer(static_cast<uint64_t>(i), buffer);
     } else { // 32-bit or less
       return FastIntToBuffer(static_cast<uint32_t>(i), buffer);
@@ -64,18 +62,16 @@ wchar_t *FastIntToBuffer(int_type i, wchar_t *buffer) {
 
 // Implementation of SimpleAtoi, generalized to support arbitrary base (used
 // with base different from 10 elsewhere in Abseil implementation).
-template <typename int_type>
-bool safe_strtoi_base(std::wstring_view s, int_type *out, int base) {
+template <typename int_type> bool safe_strtoi_base(std::wstring_view s, int_type *out, int base) {
   static_assert(sizeof(*out) == 4 || sizeof(*out) == 8,
                 "SimpleAtoi works only with 32-bit or 64-bit integers.");
-  static_assert(!std::is_floating_point<int_type>::value,
-                "Use SimpleAtof or SimpleAtod instead.");
+  static_assert(!std::is_floating_point<int_type>::value, "Use SimpleAtof or SimpleAtod instead.");
   bool parsed;
   // TODO(jorg): This signed-ness check is used because it works correctly
   // with enums, and it also serves to check that int_type is not a pointer.
   // If one day something like std::is_signed<enum E> works, switch to it.
-  if (static_cast<int_type>(1) - 2 < 0) { // Signed
-    if (sizeof(*out) == 64 / 8) {         // 64-bit
+  if constexpr (static_cast<int_type>(1) - 2 < 0) { // Signed
+    if constexpr (sizeof(*out) == 64 / 8) {         // 64-bit
       int64_t val;
       parsed = numbers_internal::safe_strto64_base(s, &val, base);
       *out = static_cast<int_type>(val);
@@ -84,8 +80,8 @@ bool safe_strtoi_base(std::wstring_view s, int_type *out, int base) {
       parsed = numbers_internal::safe_strto32_base(s, &val, base);
       *out = static_cast<int_type>(val);
     }
-  } else {                        // Unsigned
-    if (sizeof(*out) == 64 / 8) { // 64-bit
+  } else {                                  // Unsigned
+    if constexpr (sizeof(*out) == 64 / 8) { // 64-bit
       uint64_t val;
       parsed = numbers_internal::safe_strtou64_base(s, &val, base);
       *out = static_cast<int_type>(val);
