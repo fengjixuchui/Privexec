@@ -63,6 +63,27 @@ std::wstring_view BaseName(std::wstring_view name) {
   return name.substr(i);
 }
 
+std::wstring_view DirName(std::wstring_view path) {
+  auto i = path.size() - 1;
+  auto p = path.data();
+  for (; IsPathSeparator(p[i]); i--) {
+    if (i == 0) {
+      return path;
+    }
+  }
+  for (; !IsPathSeparator(p[i]); i--) {
+    if (i == 0) {
+      return path;
+    }
+  }
+  for (; IsPathSeparator(p[i]); i--) {
+    if (i == 0) {
+      return path;
+    }
+  }
+  return path.substr(0, i + 1);
+}
+
 bool SplitPathInternal(std::wstring_view sv, std::vector<std::wstring_view> &output) {
   constexpr std::wstring_view dotdot = L"..";
   constexpr std::wstring_view dot = L".";
@@ -245,7 +266,7 @@ inline bool PathFileIsExists(std::wstring_view file) {
 }
 
 bool HasExt(std::wstring_view file) {
-  auto pos = file.find(L'.');
+  auto pos = file.rfind(L'.');
   if (pos == std::wstring_view::npos) {
     return false;
   }

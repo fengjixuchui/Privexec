@@ -6,27 +6,24 @@
 [![Total Downloads](https://img.shields.io/github/downloads/M2Team/Privexec/total.svg)](https://github.com/M2Team/Privexec/releases)
 [![996.icu](https://img.shields.io/badge/link-996.icu-red.svg)](https://996.icu)
 
+使用特定的用户权限运行程序
 
-[简体中文](./ReadMe.zh-CN.md)
+## 安装
 
-Run the program with the specified permission level
-
-## Install
-
-Install Privexec by [baulk](https://github.com/baulk/baulk)
+使用 [baulk](https://github.com/baulk/baulk) 安装 Privexec
 
 ```powershell
 baulk install wsudo
 wsudo --version
 ```
 
-Or you can download it directly, use Exeplorer or 7z and other tools to extract and then use Privexec, download link: [https://github.com/M2Team/Privexec/releases/latest](https://github.com/M2Team/Privexec/releases/latest)
+当然你可以直接下载压缩包，然后使用 7z/WinRar/资源管理器等提取到任意目录运行 Privexec/AppExec/wsudo，下载链接: [https://github.com/M2Team/Privexec/releases/latest](https://github.com/M2Team/Privexec/releases/latest)
 
 
 
-## Alias
-Privexec and wsudo can resolve aliases. In addition, wsudo adds or deletes aliases. It is also a good choice to use vscode to edit `Privexec.json` to modify aliases. When Privexec is installed via baulk, the storage directory of `Privexec.json` is `$BAULK_ROOT/bin/etc`. If Privexec Download and unzip directly, then `Privexec.json` will be in the same directory as `Privexec.exe`.
+## 别名
 
+Privexec 和 wsudo 能够解析别名，另外 wsudo 添加或者删除别名，使用 vscode 编辑 `Privexec.json` 修改别名也是不错的选择，当 Privexec 通过 baulk 安装时，`Privexec.json` 的存储目录为 `$BAULK_ROOT/bin/etc`，如果 Privexec 直接下载解压，那么 `Privexec.json` 则在 `Privexec.exe` 相同的目录。 
 
 ```json
 {
@@ -46,12 +43,12 @@ Privexec and wsudo can resolve aliases. In addition, wsudo adds or deletes alias
 ```
 
 
-## Screenshot
+## 截图
 
 ![ui](docs/images/admin.png)
 
 
-Alias:
+别名:
 
 ![alias](docs/images/alias.png)
 
@@ -60,27 +57,25 @@ AppContainer:
 ![appcoantiner](docs/images/appcontainer.png)
 
 
-wsudo usage:
+wsudo 帮助信息输出:
 
 ![wsudo](docs/images/wsudo.png)
 
-wsudo Verbose Mode:
+wsudo Verbose 模式:
 
 ![wsudo](docs/images/wsudo3.png)
 
-AppContainer Exec
+AppExec AppContainer 启动器：
 
 ![appexec](docs/images/appexec.png)
 
-## Usage
+## 使用帮助
 
-Privexec is a GUI client. When running as a standard user, you can start the administrator process; when running as an administrator, you can elevate the privileges to `System` or `TrustedInstaller`. It should be noted that `System` or `TrustedInstaller` has too many privileges, which can easily damage the system operation. Be careful when using it.
+Privexec 是一个 GUI 客户端, 当以标准用户运行时你可以启动管理员进程；当以管理员运行时则可以提权到 `System` 或者 `TrustedInstaller`，需要注意 `System` 或者 `TrustedInstaller` 拥有太多特权，容易破坏系统运行，使用的时候需要慎重。
 
-AppExec is a program that starts the AppContainer process. Some developers use this program to study the running details of Windows AppContainer and the vulnerabilities of AppContaner. UWP applications run in the AppContainer container.
+AppExec 是一个启动 AppContainer 进程的程序，有一些开发者使用该程序去研究 Windows AppContainer 的运行细节，研究 AppContaner 的漏洞，UWP 应用便是运行在 AppContainer 容器中的。
 
-wsudo is the console version of Privexec/AppExec. The detailed help is as follows:
-
-**wsudo usage:**
+wsudo 是 Privexec/AppExec 的控制台版本，详细使用帮助如下：
 
 ```txt
 wsudo 😋 ♥ run the program with the specified permissions
@@ -117,35 +112,36 @@ Builtin 'alias' command:
 
 ```
 
-When Privexec, AppExec, wsudo launch commands, the command line and launch directory support deduction via `ExpandEnvironmentString`.
+Privexec, AppExec, wsudo 启动命令时，命令行和和启动目录支持通过 `ExpandEnvironmentString` 推导.
 
+## WSUDO 控制台行为细节
 
-## WSUDO Details
+wsudo 支持的参数 `--hide` `--wait` `--new-console` 行为细节如下:
 
-The wsudo visible and wait related parameters are `--hide` `--wait` `--new-console`. The corresponding situation is as follows:
-
-|PE Subsystem|`No relevant parameters`|`--new-console`|`--hide`|
+|PE 子系统|无参数|`--new-console`|`--hide`|
 |---|---|---|---
-|Windows CUI|wait/Inheritance console|no wait/New console|no wait/No console|
-|Windows GUI|no wait/New UI|no wait/New UI|no wait/ignore|
-|Windows CUI `-wait`|wait/Inheritance console|wait/New console|wait/No console|
-|Windows GUI `-wait`|wait/New UI|wait/New UI|wait/No ignore|
+|Windows CUI|等待退出/继承控制台|不等待退出/打开新的控制台|不等待退出/无控制台|
+|Windows GUI|不等待退出/打开图形化窗口|不等待退出/打开图形化窗口|不等待退出/忽略|
+|Windows CUI `-wait`|等待退出/继承控制台|等待退出/打开新的控制台|等待退出/无控制台|
+|Windows GUI `-wait`|等待退出/打开图形化窗口|等待退出/打开图形化窗口|等待退出/忽略|
 
-When wsudo starts the administrator process as a standard user, if it is currently running in the console, it supports inheriting the console window. If it is not running in the console, it can do nothing. The newer Cygwin currently supports the newer Windows 10 `ConPty` starts the console, so it can inherit the console window, which is the terminal. The picture below is the proof.
+wsudo 在以标准用户启动管理员进程时，如果当前运行在控制台时，支持继承控制台窗口，如果不是运行在控制台，则无能为力，较新的 Cygwin 目前已经支持在较新的 Windows 10 上以 ConPty 启动控制台，因此时可以继承控制台窗口的，也就是终端。 下图就是佐证。
 
-wsudo exec administrator process under mintty (Turn on ConPty):
+
+在开启了 ConPty 的 Mintty 中运行 wsudo 提升进程截图（借助 wsudo-tie 子进程继承了 wsudo 的控制台）:
 
 ![wsudo](docs/images/wsudo-tie-new-mintty.png)
 
-### WSUDO Environment
+### WSUDO 环境变量
 
-wsudo support `-e/--env` to set environment. such as:
+wsudo 支持通过参数 `-e/--env` 设置环境变量，例如:
 
 ```batch
 ::curl must enabled multiple SSL backends.
 wsudo  -U -V --env CURL_SSL_BACKEND=schannel curl --verbose  -I https://nghttp2.org
 ```
-The environment variables will be deduced according to the Batch mechanism, that is, the environment variables are marked with matching `%`.
+
+环境变量会按照 Batch 的机制推导，即使用配对的 `%` 标记环境变量。
 
 ```powershell
 # powershell
@@ -159,8 +155,8 @@ wsudo -e "PATH=%PATH%;%TEMP%" -n -U cmd
 
 ## Changelog
 
-see: [changelog.md](./docs/changelog.md)
+可以查看: [changelog.md](./docs/changelog.md)
 
 ## LICENSE
 
-This project use MIT License, and JSON use [https://github.com/nlohmann/json](https://github.com/nlohmann/json) , some API use NSudo, but rewrite it.
+这个项目使用 MIT 协议，但其使用了一些其他开源库，可以查看相应的许可头和协议。比如这里使用了 [https://github.com/nlohmann/json](https://github.com/nlohmann/json) , 有些 API 借鉴了 NSudo 的，但已经重写。

@@ -10,7 +10,6 @@
 #include <bela/phmap.hpp>
 
 namespace wsudo {
-extern std::wstring ExecutableFinalPathParent;
 struct AliasTarget {
   std::wstring target;
   std::wstring desc;
@@ -29,8 +28,7 @@ public:
   ~AliasEngine();
   bool Initialize(bool verbose = false);
   std::optional<std::wstring> Target(std::wstring_view al);
-  bool Set(std::wstring_view key, std::wstring_view target,
-           std::wstring_view desc) {
+  bool Set(std::wstring_view key, std::wstring_view target, std::wstring_view desc) {
     alias.insert_or_assign(key, AliasTarget(target, desc));
     updated = true;
     return true;
@@ -52,7 +50,7 @@ private:
   bool Apply();
   value_type alias;
 };
-int AliasSubcmd(const std::vector<std::wstring_view> &argv, bool verbose);
+int AliasSubcmd(const std::vector<std::wstring_view> &argv);
 } // namespace wsudo
 
 #endif
