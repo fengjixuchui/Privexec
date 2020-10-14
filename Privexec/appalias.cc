@@ -18,9 +18,8 @@ struct alias_item_t {
 };
 bool AppAliasInitializeBuilt(std::wstring_view file) {
   constexpr alias_item_t items[] = {
-      {"windbg", "Windows Debugger",
-       "\"%ProgramFiles(x86)%\\Windows Kits\\10\\Debuggers\\x64\\windbg.exe\""},       //
-      {"edit-hosts", "Edit Hosts", "Notepad %windir%\\System32\\Drivers\\etc\\hosts"}, //
+      {"windbg", "Windows Debugger", "\"%ProgramFiles(x86)%\\Windows Kits\\10\\Debuggers\\x64\\windbg.exe\""}, //
+      {"edit-hosts", "Edit Hosts", "Notepad %windir%\\System32\\Drivers\\etc\\hosts"},                         //
   };
   try {
     nlohmann::json j;
@@ -43,6 +42,11 @@ bool AppAliasInitializeBuilt(std::wstring_view file) {
     return false;
   }
   return true;
+}
+
+std::wstring AppAliasFile() {
+  //
+  return PathSearcher::Instance().JoinEtc(L"Privexec.json");
 }
 
 bool AppAliasInitialize(HWND hbox, priv::alias_t &alias) {

@@ -83,9 +83,9 @@ else()
 endif()
 
 #
-set(PRIVEXEC_VERSION_MAJOR 3)
+set(PRIVEXEC_VERSION_MAJOR 4)
 set(PRIVEXEC_VERSION_MINOR 0)
-set(PRIVEXEC_VERSION_PATCH 1)
+set(PRIVEXEC_VERSION_PATCH 0)
 set(PACKAGE_VERSION "${PRIVEXEC_VERSION_MAJOR}.${PRIVEXEC_VERSION_MINOR}.${PRIVEXEC_VERSION_PATCH}")
 
 string(TOLOWER "${CMAKE_C_COMPILER_ARCHITECTURE_ID}" COMPILER_ARCH_ID)
@@ -121,13 +121,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -c65001")
 add_definitions(-D_UNICODE=1 -DUNICODE=1)
 
-include_directories("${CMAKE_BINARY_DIR}/include" ./include ./vendor/bela/include ./vendor/pugixml ./lib/ProcessCore)
+include_directories("${CMAKE_BINARY_DIR}/include" ./include ./vendor/bela/include ./vendor/pugixml ./lib/exec)
 
 configure_file("config/Privexec.json" "${CMAKE_BINARY_DIR}/bin/Privexec.json" COPYONLY)
 
 install(FILES config/Privexec.json DESTINATION .)
 add_subdirectory(vendor/bela)
-add_subdirectory(lib/ProcessCore)
+add_subdirectory(lib/exec)
 add_subdirectory(AppExec)
 add_subdirectory(Privexec)
 add_subdirectory(wsudo)

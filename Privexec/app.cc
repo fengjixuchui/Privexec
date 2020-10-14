@@ -1,5 +1,4 @@
 ///
-#include <process.hpp>
 #include "app.hpp" // included windows.h
 #include <Windowsx.h>
 // C RunTime Header Files
@@ -11,15 +10,17 @@
 #include <shellapi.h>
 #include <string>
 #include <bela/env.hpp>
+#include <bela/simulator.hpp>
 #include <bela/picker.hpp>
+#include <exec.hpp>
 #include "resource.h"
 
 namespace priv {
 
 int App::run(HINSTANCE hInstance) {
   hInst = hInstance;
-  return (int)DialogBoxParamW(hInstance, MAKEINTRESOURCEW(IDD_APPLICATION_DIALOG), NULL,
-                              App::WindowProc, reinterpret_cast<LPARAM>(this));
+  return (int)DialogBoxParamW(hInstance, MAKEINTRESOURCEW(IDD_APPLICATION_DIALOG), NULL, App::WindowProc,
+                              reinterpret_cast<LPARAM>(this));
 }
 
 INT_PTR WINAPI App::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -44,7 +45,7 @@ bool App::Initialize(HWND window) {
   ChangeWindowMessageFilter(0x0049, MSGFLT_ADD);
   ::DragAcceptFiles(hWnd, TRUE);
 
-  auto elevated = priv::IsUserAdministratorsGroup();
+  auto elevated = wsudo::exec::IsUserAdministratorsGroup();
   if (elevated) {
     // Update title when app run as admin
     WCHAR title[256];
@@ -54,18 +55,19 @@ bool App::Initialize(HWND window) {
   }
   box = GetDlgItem(hWnd, IDC_USER_COMBOX);
 
-  box.Append((int)priv::ExecLevel::AppContainer, L"AppContainer");
-  box.Append((int)priv::ExecLevel::MIC, L"Mandatory Integrity Control");
+  box.Append((int)wsudo::exec::privilege_t::appcontainer, L"AppContainer");
+  box.Append((int)wsudo::exec::privilege_t::mic, L"Mandatory Integrity Control");
   if (elevated) {
-    box.Append((int)priv::ExecLevel::NoElevated, L"Not Elevated (UAC)", true);
-    box.Append((int)priv::ExecLevel::Elevated, L"Administrator");
-    box.Append((int)priv::ExecLevel::System, L"System");
-    box.Append((int)priv::ExecLevel::TrustedInstaller, L"TrustedInstaller");
+    box.Append((int)wsudo::exec::privilege_t::standard, L"Not Elevated (UAC)", true);
+    box.Append((int)wsudo::exec::privilege_t::elevated, L"Administrator");
+    box.Append((int)wsudo::exec::privilege_t::system, L"System");
+    box.Append((int)wsudo::exec::privilege_t::trustedinstaller, L"TrustedInstaller");
   } else {
-    box.Append((int)priv::ExecLevel::NoElevated, L"Not Elevated (UAC)");
-    box.Append((int)priv::ExecLevel::Elevated, L"Administrator", true);
+    box.Append((int)wsudo::exec::privilege_t::standard, L"Not Elevated (UAC)");
+    box.Append((int)wsudo::exec::privilege_t::elevated, L"Administrator", true);
   }
   HMENU hSystemMenu = ::GetSystemMenu(hWnd, FALSE);
+  InsertMenuW(hSystemMenu, SC_CLOSE, MF_ENABLED, IDM_EDIT_ALIASFILE, L"Open Privexec.json");
   InsertMenuW(hSystemMenu, SC_CLOSE, MF_ENABLED, IDM_PRIVEXEC_ABOUT, L"About Privexec\tAlt+F1");
   cmd.hInput = GetDlgItem(hWnd, IDC_COMMAND_COMBOX);
   cmd.hButton = GetDlgItem(hWnd, IDB_COMMAND_TARGET);
@@ -81,8 +83,29 @@ bool App::Initialize(HWND window) {
   return true;
 }
 
+bool App::AppAliasEdit() {
+  auto aliasFile = priv::AppAliasFile();
+  wsudo::exec::command cmd;
+  std::wstring code;
+  if (bela::env::ExecutableExistsInPath(L"code.cmd", code)) {
+    cmd.path = std::move(code);
+    cmd.argv.emplace_back(L"code.cmd");
+    cmd.visible = wsudo::exec::visible_t::hide; // hide console window
+  } else {
+    cmd.argv.emplace_back(L"notepad.exe");
+  }
+  cmd.argv.emplace_back(std::move(aliasFile));
+  cmd.priv = wsudo::exec::privilege_t::standard;
+  bela::error_code ec;
+  if (!cmd.execute(ec)) {
+    bela::BelaMessageBox(hWnd, L"open editor edit alias failed", ec.message.data(), nullptr, bela::mbs_t::FATAL);
+    return false;
+  }
+  return true;
+}
+
 bool App::SelChanged() {
-  if (box.IsMatch((int)priv::ExecLevel::AppContainer)) {
+  if (box.IsMatch((int)wsudo::exec::privilege_t::appcontainer)) {
     appx.Update(L"");
     appx.Visible(TRUE);
     appcas.Visible(TRUE);
@@ -123,61 +146,54 @@ std::wstring App::ResolveCWD(bool allowempty) {
 }
 
 bool App::AppExecute() {
-
   auto appindex = box.AppIndex();
-  auto cmd_ = ResolveCMD();
-  if (cmd_.empty()) {
-    bela::BelaMessageBox(hWnd, L"Please input command line", L"command empty", PRIVEXEC_APPLINKE,
-                         bela::mbs_t::FATAL);
+  auto commandline = ResolveCMD();
+  if (commandline.empty()) {
+    bela::BelaMessageBox(hWnd, L"Please input command line", L"command empty", PRIVEXEC_APPLINKE, bela::mbs_t::FATAL);
     return false;
   }
-
-  if (appindex == (int)priv::ExecLevel::AppContainer) {
-    //// TODO app container.
-    auto cas = appcas.Capabilities();
-    auto xml = bela::WindowsExpandEnv(appx.Content());
-    if (!xml.empty() && !priv::MergeFromAppManifest(xml, cas)) {
-      auto ec = bela::make_system_error_code();
-      bela::BelaMessageBox(hWnd, L"Privexec appmanifest error", ec.message.c_str(),
-                           PRIVEXEC_APPLINKE, bela::mbs_t::FATAL);
+  bela::error_code ec;
+  if (appindex == (int)wsudo::exec::privilege_t::appcontainer) {
+    wsudo::exec::appcommand cmd;
+    if (!wsudo::exec::SplitArgv(commandline, cmd.path, cmd.argv, ec)) {
+      bela::BelaMessageBox(hWnd, L"Privexec SplitArgv failed", ec.message.data(), PRIVEXEC_APPLINKE,
+                           bela::mbs_t::FATAL);
       return false;
     }
-    priv::AppContainer p(cmd_);
-    p.EnableLPAC(appcas.IsLowPrivilegeAppContainer());
-    auto cwd_ = ResolveCWD(true); // app startup directory
-    p.Chdir(cwd_);
-    if (!p.Initialize({cas.data(), cas.size()}) || !p.Exec()) {
-      auto ec = bela::make_system_error_code();
-      if (!p.Message().empty()) {
-        bela::StrAppend(&ec.message, L"(", p.Message(), L")");
-      }
-      bela::BelaMessageBox(hWnd, L"Privexec create appconatiner process failed", ec.message.c_str(),
-                           PRIVEXEC_APPLINKE, bela::mbs_t::FATAL);
+    cmd.caps = appcas.Capabilities();
+    cmd.appmanifest = bela::WindowsExpandEnv(appx.Content());
+    cmd.islpac = appcas.IsLowPrivilegeAppContainer();
+    cmd.cwd = ResolveCWD(true);
+    if (!cmd.initialize(ec)) {
+      bela::BelaMessageBox(hWnd, L"Privexec AppContainer init", ec.message.data(), PRIVEXEC_APPLINKE,
+                           bela::mbs_t::FATAL);
+      return false;
+    }
+    if (!cmd.execute(ec)) {
+      bela::BelaMessageBox(hWnd, L"Privexec create AppContainer process failed", ec.message.data(), PRIVEXEC_APPLINKE,
+                           bela::mbs_t::FATAL);
       return false;
     }
     return true;
   }
 
-  priv::Process p(cmd_);
-  auto cwd_ = ResolveCWD(); // app startup directory
-  p.Chdir(cwd_);
-  if (!p.Exec((priv::ExecLevel)appindex)) {
-    if (appindex == (int)priv::ExecLevel::Elevated && !priv::IsUserAdministratorsGroup()) {
-      return false;
-    }
-    auto ec = bela::make_system_error_code();
-    if (!p.Message().empty()) {
-      bela::StrAppend(&ec.message, L"(", p.Message(), L")");
-    }
-    bela::BelaMessageBox(hWnd, L"Privexec create process failed", ec.message.data(),
-                         PRIVEXEC_APPLINKE, bela::mbs_t::FATAL);
+  wsudo::exec::command cmd;
+  cmd.priv = static_cast<wsudo::exec::privilege_t>(appindex);
+  if (!wsudo::exec::SplitArgv(commandline, cmd.path, cmd.argv, ec)) {
+    bela::BelaMessageBox(hWnd, L"Privexec SplitArgv failed", ec.message.data(), PRIVEXEC_APPLINKE, bela::mbs_t::FATAL);
+    return false;
+  }
+  cmd.cwd = ResolveCWD();
+  if (!cmd.execute(ec)) {
+    bela::BelaMessageBox(hWnd, L"Privexec create process failed", ec.message.data(), PRIVEXEC_APPLINKE,
+                         bela::mbs_t::FATAL);
     return false;
   }
   return true;
 }
 
 bool App::AppLookupExecute() {
-  const bela::filter_t filters[] = {{L"Windows Execute(*.exe;*.com;*.bat)", L"*.exe;*.com;*.bat"},
+  const bela::filter_t filters[] = {{L"Windows Execute(*.exe;*.com;*.bat;*.cmd)", L"*.exe;*.com;*.bat;*.cmd"},
                                     {L"All Files (*.*)", L"*.*"}};
   auto exe = bela::FilePicker(hWnd, L"Privexec: Select Execute", filters);
   if (exe) {
@@ -188,9 +204,8 @@ bool App::AppLookupExecute() {
 }
 
 bool App::AppLookupManifest() {
-  const bela::filter_t filters[] = {
-      {L"Windows Appxmanifest (*.appxmanifest;*.xml)", L"*.appxmanifest;*.xml"},
-      {L"All Files (*.*)", L"*.*"}};
+  const bela::filter_t filters[] = {{L"Windows Appxmanifest (*.appxmanifest;*.xml)", L"*.appxmanifest;*.xml"},
+                                    {L"All Files (*.*)", L"*.*"}};
   auto xml = bela::FilePicker(hWnd, L"Privexec: Select AppManifest", filters);
   if (xml) {
     appx.Update(*xml);
@@ -242,8 +257,10 @@ INT_PTR App::MessageHandler(UINT message, WPARAM wParam, LPARAM lParam) {
   case WM_SYSCOMMAND:
     switch (LOWORD(wParam)) {
     case IDM_PRIVEXEC_ABOUT:
-      bela::BelaMessageBox(hWnd, L"About Privexec", PRIVEXEC_APPVERSION, PRIVEXEC_APPLINK,
-                           bela::mbs_t::ABOUT);
+      bela::BelaMessageBox(hWnd, L"About Privexec", PRIVEXEC_APPVERSION, PRIVEXEC_APPLINK, bela::mbs_t::ABOUT);
+      break;
+    case IDM_EDIT_ALIASFILE:
+      AppAliasEdit();
       break;
     default:
       break;

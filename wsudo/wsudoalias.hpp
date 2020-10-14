@@ -7,7 +7,7 @@
 #include <optional>
 #include <unordered_map>
 #include <bela/codecvt.hpp>
-#include <bela/phmap.hpp>
+#include <bela/simulator.hpp>
 
 namespace wsudo {
 struct AliasTarget {
@@ -15,13 +15,13 @@ struct AliasTarget {
   std::wstring desc;
   AliasTarget() = default;
   AliasTarget(std::wstring_view t, std::wstring_view d) : target(t), desc(d) {}
-  AliasTarget(std::string_view t, std::string_view d)
-      : target(bela::ToWide(t)), desc(bela::ToWide(d)) {}
+  AliasTarget(std::string_view t, std::string_view d) : target(bela::ToWide(t)), desc(bela::ToWide(d)) {}
 };
 
 class AliasEngine {
 public:
-  using value_type = bela::flat_hash_map<std::wstring, AliasTarget>;
+  using value_type = bela::flat_hash_map<std::wstring, AliasTarget, bela::env::StringCaseInsensitiveHash,
+                                         bela::env::StringCaseInsensitiveEq>;
   AliasEngine() = default;
   AliasEngine(const AliasEngine &) = delete;
   AliasEngine &operator=(const AliasEngine &) = delete;
@@ -50,7 +50,7 @@ private:
   bool Apply();
   value_type alias;
 };
-int AliasSubcmd(const std::vector<std::wstring_view> &argv);
+int AliasSubcmd(const std::vector<std::wstring> &argv);
 } // namespace wsudo
 
 #endif
