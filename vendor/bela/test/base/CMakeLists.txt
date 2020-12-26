@@ -8,6 +8,15 @@ target_link_libraries(base_test
 )
 
 # base
+add_executable(ascii_test
+  ascii.cc
+)
+
+target_link_libraries(ascii_test
+  bela
+)
+
+# base
 add_executable(fnmatch_test
   fnmatch.cc
 )
@@ -24,4 +33,33 @@ add_executable(delfile_test
 target_link_libraries(delfile_test
   bela
   belawin
+)
+
+# base
+add_executable(strsplit_test
+  strsplit.cc
+)
+
+target_link_libraries(strsplit_test
+  bela
+)
+
+
+
+# base
+add_executable(startswith_test
+  startswith.cc
+)
+
+target_link_libraries(startswith_test
+  bela
+)
+
+# base
+add_executable(static_string_test
+  static_string.cc
+)
+
+target_link_libraries(static_string_test
+  bela
 )

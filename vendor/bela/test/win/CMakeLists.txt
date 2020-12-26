@@ -1,10 +1,19 @@
 ##
-
-add_executable(pe_test
-  pe.cc
+add_executable(pecoff_test
+  pecoff.cc
 )
 
-target_link_libraries(pe_test
+target_link_libraries(pecoff_test
+  belawin
+  belaund
+)
+
+##
+add_executable(version_test
+  version.cc
+)
+
+target_link_libraries(version_test
   belawin
 )
 

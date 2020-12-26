@@ -1,6 +1,7 @@
 # bela base libaray
 
-add_library(bela STATIC
+add_library(
+  bela STATIC
   errno.cc
   ascii.cc
   ucwidth.cc
@@ -14,11 +15,10 @@ add_library(bela STATIC
   winansi.cc
   str_split.cc
   str_replace.cc
-  strcat.cc
-  strcat_narrow.cc
+  str_cat.cc
+  str_cat_narrow.cc
   subsitute.cc
-  terminal.cc
-)
+  terminal.cc)
 
 if(BELA_ENABLE_LTO)
   set_property(TARGET bela PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
