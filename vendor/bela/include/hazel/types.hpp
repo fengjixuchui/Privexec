@@ -55,6 +55,7 @@ typedef enum hazel_types_e : uint32_t {
   rar,
   gz,
   bz2,
+  zstd,
   p7z,
   xz,
   pdf,
@@ -138,7 +139,7 @@ typedef enum hazel_types_e : uint32_t {
   gitpkindex,
   gitmidx,
   //
-  shelllink, // Windows shelllink
+  lnk, // Windows .lnk
   //
   iso,
   jar,

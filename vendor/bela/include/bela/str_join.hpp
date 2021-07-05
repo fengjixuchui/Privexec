@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Copyright (c) 2020, Force Charlie
+// Copyright (C) 2021, Bela contributors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,9 +48,7 @@ namespace bela {
 //
 // Default formatter used if none is specified. Uses `absl::AlphaNum` to convert
 // numeric arguments to strings.
-inline strings_internal::AlphaNumFormatterImpl AlphaNumFormatter() {
-  return strings_internal::AlphaNumFormatterImpl();
-}
+inline strings_internal::AlphaNumFormatterImpl AlphaNumFormatter() { return strings_internal::AlphaNumFormatterImpl(); }
 
 // Function Template: PairFormatter(Formatter, std::wstring_view, Formatter)
 //
@@ -60,8 +58,7 @@ inline strings_internal::AlphaNumFormatterImpl AlphaNumFormatter() {
 template <typename FirstFormatter, typename SecondFormatter>
 inline strings_internal::PairFormatterImpl<FirstFormatter, SecondFormatter>
 PairFormatter(FirstFormatter f1, std::wstring_view sep, SecondFormatter f2) {
-  return strings_internal::PairFormatterImpl<FirstFormatter, SecondFormatter>(std::move(f1), sep,
-                                                                              std::move(f2));
+  return strings_internal::PairFormatterImpl<FirstFormatter, SecondFormatter>(std::move(f1), sep, std::move(f2));
 }
 
 // Function overload of PairFormatter() for using a default
@@ -83,12 +80,10 @@ strings_internal::DereferenceFormatterImpl<Formatter> DereferenceFormatter(Forma
   return strings_internal::DereferenceFormatterImpl<Formatter>(std::forward<Formatter>(f));
 }
 
-// Function overload of `DererefenceFormatter()` for using a default
+// Function overload of `DereferenceFormatter()` for using a default
 // `AlphaNumFormatter()`.
-inline strings_internal::DereferenceFormatterImpl<strings_internal::AlphaNumFormatterImpl>
-DereferenceFormatter() {
-  return strings_internal::DereferenceFormatterImpl<strings_internal::AlphaNumFormatterImpl>(
-      AlphaNumFormatter());
+inline strings_internal::DereferenceFormatterImpl<strings_internal::AlphaNumFormatterImpl> DereferenceFormatter() {
+  return strings_internal::DereferenceFormatterImpl<strings_internal::AlphaNumFormatterImpl>(AlphaNumFormatter());
 }
 
 // -----------------------------------------------------------------------------
@@ -199,8 +194,7 @@ std::wstring StrJoin(const std::tuple<T...> &value, std::wstring_view separator,
   return strings_internal::JoinAlgorithm(value, separator, fmt);
 }
 
-template <typename Iterator>
-std::wstring StrJoin(Iterator start, Iterator end, std::wstring_view separator) {
+template <typename Iterator> std::wstring StrJoin(Iterator start, Iterator end, std::wstring_view separator) {
   return strings_internal::JoinRange(start, end, separator);
 }
 
@@ -208,13 +202,11 @@ template <typename Range> std::wstring StrJoin(const Range &range, std::wstring_
   return strings_internal::JoinRange(range, separator);
 }
 
-template <typename T>
-std::wstring StrJoin(std::initializer_list<T> il, std::wstring_view separator) {
+template <typename T> std::wstring StrJoin(std::initializer_list<T> il, std::wstring_view separator) {
   return strings_internal::JoinRange(il, separator);
 }
 
-template <typename... T>
-std::wstring StrJoin(const std::tuple<T...> &value, std::wstring_view separator) {
+template <typename... T> std::wstring StrJoin(const std::tuple<T...> &value, std::wstring_view separator) {
   return strings_internal::JoinAlgorithm(value, separator, AlphaNumFormatter());
 }
 

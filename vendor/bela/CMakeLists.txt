@@ -1,5 +1,5 @@
 # top cmake
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.18)
 
 project(bela CXX C ASM)
 
@@ -16,6 +16,8 @@ endif()
 
 option(ENABLE_TEST "Enable test" OFF)
 option(BELA_ENABLE_LTO "bela enable LTO" OFF)
+
+message(STATUS "CMAKE_ASM_COMPILER_ID ${CMAKE_ASM_COMPILER_ID}")
 
 if(NOT (DEFINED CMAKE_CXX_STANDARD))
   set(CMAKE_CXX_STANDARD 20) # /std:c++latest
@@ -39,6 +41,7 @@ if(MSVC)
   add_compile_options("-W3")
   add_compile_options("-DUNICODE=1")
   add_compile_options("-D_UNICODE=1")
+  add_compile_options("-wd26812")
 endif(MSVC)
 
 include_directories(./include)

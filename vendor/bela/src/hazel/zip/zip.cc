@@ -65,6 +65,16 @@ int64_t Reader::findDirectory64End(int64_t directoryEndOffset, bela::error_code 
   return static_cast<int64_t>(p);
 }
 
+inline std::string cleanupName(const void *data, size_t N) {
+  auto p = reinterpret_cast<const char *>(data);
+  auto pos = memchr(p, 0, N);
+  if (pos == nullptr) {
+    return std::string(p, N);
+  }
+  N = reinterpret_cast<const char *>(pos) - p;
+  return std::string(p, N);
+}
+
 // github.com\klauspost\compress@v1.11.3\zip\reader.go
 bool Reader::readDirectoryEnd(directoryEnd &d, bela::error_code &ec) {
   bela::Buffer buffer(16 * 1024);
@@ -91,7 +101,11 @@ bool Reader::readDirectoryEnd(directoryEnd &d, bela::error_code &ec) {
       return false;
     }
   }
-  b.Discard(4);
+  // 5*2 +4*2
+  if (b.Discard(4) < 18) {
+    ec = bela::make_error_code(L"zip: not a valid zip file");
+    return false;
+  }
   d.diskNbr = b.Read<uint16_t>();
   d.dirDiskNbr = b.Read<uint16_t>();
   d.dirRecordsThisDisk = b.Read<uint16_t>();
@@ -143,35 +157,35 @@ bool readDirectoryHeader(bufioReader &br, bela::Buffer &buffer, File &file, bela
   file.method = b.Read<uint16_t>();
   auto dosTime = b.Read<uint16_t>();
   auto dosDate = b.Read<uint16_t>();
-  file.crc32 = b.Read<uint32_t>();
+  file.crc32sum = b.Read<uint32_t>();
   file.compressedSize = b.Read<uint32_t>();
   file.uncompressedSize = b.Read<uint32_t>();
   auto filenameLen = b.Read<uint16_t>();
   auto extraLen = b.Read<uint16_t>();
   auto commentLen = b.Read<uint16_t>();
   b.Discard(4);
-  file.externalAttrs = b.Read<uint32_t>();
+  auto externalAttrs = b.Read<uint32_t>();
   file.position = b.Read<uint32_t>();
   auto totallen = filenameLen + extraLen + commentLen;
   buffer.grow(totallen);
   if (br.ReadFull(buffer.data(), totallen, ec) != totallen) {
     return false;
   }
-  file.name.assign(reinterpret_cast<const char *>(buffer.data()), filenameLen);
-  file.extra.assign(reinterpret_cast<const char *>(buffer.data() + filenameLen), extraLen);
-  file.comment.assign(reinterpret_cast<const char *>(buffer.data() + filenameLen + extraLen), commentLen);
+  file.name = cleanupName(buffer.data(), filenameLen);
+  if (commentLen != 0) {
+    file.comment = cleanupName(buffer.data() + filenameLen + extraLen, commentLen);
+  }
   auto needUSize = file.uncompressedSize == SizeMin;
   auto needSize = file.compressedSize == SizeMin;
   auto needOffset = file.position == OffsetMin;
-  file.utf8 = (file.flags & 0x800) != 0;
-
+  file.mode = resolveFileMode(file, externalAttrs);
   bela::Time modified;
 
-  bela::endian::LittenEndian extra(file.extra.data(), file.extra.size());
+  bela::endian::LittenEndian extra(buffer.data() + filenameLen, static_cast<size_t>(extraLen));
   for (; extra.Size() >= 4;) {
     auto fieldTag = extra.Read<uint16_t>();
     auto fieldSize = static_cast<int>(extra.Read<uint16_t>());
-    if (extra.Size() < fieldSize) {
+    if (extra.Size() < static_cast<size_t>(fieldSize)) {
       break;
     }
     auto fb = extra.Sub(fieldSize);
@@ -230,10 +244,53 @@ bool readDirectoryHeader(bufioReader &br, bela::Buffer &buffer, File &file, bela
       continue;
     }
     if (fieldTag == extTimeExtraID) {
-      if (fb.Size() < 5 || (fb.Pick() & 1) == 0) {
+      if (fb.Size() < 5) {
         continue;
       }
-      modified = bela::FromUnixSeconds(static_cast<int64_t>(fb.Read<uint32_t>()));
+      auto flags = fb.Pick();
+      if ((flags & 0x1) != 0) {
+        modified = bela::FromUnixSeconds(static_cast<int64_t>(fb.Read<uint32_t>()));
+        continue;
+      }
+      if ((flags & 0x2) != 0) {
+        // atime: access time
+        continue;
+      }
+      if ((flags & 0x4) != 0) {
+        // ctime: create time
+        continue;
+      }
+      continue;
+    }
+    if (fieldTag == infoZipUnicodePathID) {
+      /*
+       (UPath) 0x7075        Short       tag for this extra block type ("up")
+         TSize         Short       total data size for this block
+         Version       1 byte      version of this extra field, currently 1
+         NameCRC32     4 bytes     File Name Field CRC32 Checksum
+         UnicodeName   Variable    UTF-8 version of the entry File Name
+      */
+      if (fb.Size() < 5 || (file.flags & 0x800) != 0) {
+        continue;
+      }
+      auto ver = fb.Pick();
+      auto crc32val = fb.Read<uint32_t>();
+      file.flags |= 0x800;
+      file.name = cleanupName(fb.Data<char>(), fb.Size());
+      continue;
+    }
+    if (fieldTag == infoZipUnicodeCommentExtraID) {
+      // (UCom) 0x6375        Short       tag for this extra block type ("uc")
+      //  TSize         Short       total data size for this block
+      //  Version       1 byte      version of this extra field, currently 1
+      //  ComCRC32      4 bytes     Comment Field CRC32 Checksum
+      //  UnicodeCom    Variable    UTF-8 version of the entry comment
+      if (fb.Size() < 5) {
+        continue;
+      }
+      auto ver = fb.Pick();
+      auto crc32val = fb.Read<uint32_t>();
+      file.comment = cleanupName(fb.Data<char>(), fb.Size());
       continue;
     }
     // https://www.winzip.com/win/en/aes_info.html
@@ -272,7 +329,7 @@ bool Reader::Initialize(bela::error_code &ec) {
     return false;
   }
   if (d.directoryRecords > static_cast<uint64_t>(size) / fileHeaderLen) {
-    ec = bela::make_error_code(1, L"zip: TOC declares impossible ", d.directoryRecords, L" files in ", size,
+    ec = bela::make_error_code(ErrGeneral, L"zip: TOC declares impossible ", d.directoryRecords, L" files in ", size,
                                L" byte zip");
     return false;
   }
@@ -320,7 +377,7 @@ bool Reader::OpenReader(HANDLE nfd, int64_t sz, bela::error_code &ec) {
   return Initialize(ec);
 }
 
-const wchar_t *Method(uint16_t m) {
+std::wstring Method(uint16_t m) {
   struct method_kv_t {
     hazel::zip::zip_method_t m;
     const wchar_t *name;
@@ -347,13 +404,14 @@ const wchar_t *Method(uint16_t m) {
       {zip_method_t::ZIP_WAVPACK, L"WavPack"},
       {zip_method_t::ZIP_PPMD, L"PPMd"},
       {zip_method_t::ZIP_AES, L"AES"},
+      {zip_method_t::ZIP_BROTLI, L"brotli"},
   };
   for (const auto &i : methods) {
     if (static_cast<uint16_t>(i.m) == m) {
       return i.name;
     }
   }
-  return L"NONE";
+  return std::wstring(bela::AlphaNum(m).Piece());
 }
 
 bool Reader::ContainsSlow(std::span<std::string_view> paths, std::size_t limit) const {
@@ -471,10 +529,11 @@ bool Reader::LooksLikeODF(std::string *mime) const {
   for (const auto &file : files) {
     if (file.name == "mimetype" && file.method == ZIP_STORE && file.compressedSize < 120) {
       bela::error_code ec;
+      mime->reserve(file.compressedSize);
       return Decompress(
           file,
-          [&](const void *data, size_t size) -> bool {
-            mime->append(static_cast<const char *>(data), size);
+          [&](const void *data, size_t sz) -> bool {
+            mime->append(static_cast<const char *>(data), sz);
             return true;
           },
           ec);

@@ -20,7 +20,7 @@ public:
       return -1;
     }
     if (r == w) {
-      if (len > sizeof(data)) {
+      if (static_cast<size_t>(len) > sizeof(data)) {
         // Large read, empty buffer.
         // Read directly into p to avoid copy.
         ssize_t rlen = 0;
@@ -65,8 +65,8 @@ public:
   constexpr int size() const { return Size; }
 
 private:
-  HANDLE fd;
-  uint8_t data[Size];
+  HANDLE fd{INVALID_HANDLE_VALUE};
+  uint8_t data[Size] = {0};
   ssize_t w{0};
   ssize_t r{0};
   bool fsread(void *b, ssize_t len, ssize_t &rlen, bela::error_code &ec) {

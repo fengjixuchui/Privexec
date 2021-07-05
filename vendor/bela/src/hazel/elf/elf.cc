@@ -40,13 +40,12 @@ bool File::ParseFile(bela::error_code &ec) {
     size = li.QuadPart;
   }
   uint8_t ident[16];
-  constexpr auto x = sizeof(FileHeader);
   if (!ReadAt(ident, sizeof(ident), 0, ec)) {
     return false;
   }
   constexpr uint8_t elfmagic[4] = {'\x7f', 'E', 'L', 'F'};
   if (memcmp(ident, elfmagic, sizeof(elfmagic)) != 0) {
-    ec = bela::make_error_code(1, L"elf: bad magic number ['", static_cast<int>(ident[0]), L"', '",
+    ec = bela::make_error_code(ErrGeneral, L"elf: bad magic number ['", static_cast<int>(ident[0]), L"', '",
                                static_cast<int>(ident[1]), L"', '", static_cast<int>(ident[2]), L"', '",
                                static_cast<int>(ident[3]), L"']");
     return false;
@@ -59,7 +58,7 @@ bool File::ParseFile(bela::error_code &ec) {
     is64bit = true;
     break;
   default:
-    ec = bela::make_error_code(1, L"unkonw ELF class ", static_cast<int>(fh.Class));
+    ec = bela::make_error_code(ErrGeneral, L"unkonw ELF class ", static_cast<int>(fh.Class));
     return false;
   }
   fh.Data = ident[EI_DATA];
@@ -71,7 +70,7 @@ bool File::ParseFile(bela::error_code &ec) {
     en = std::endian::big;
     break;
   default:
-    ec = bela::make_error_code(1, L"unkonw ELF data encoding ", static_cast<int>(fh.Data));
+    ec = bela::make_error_code(ErrGeneral, L"unkonw ELF data encoding ", static_cast<int>(fh.Data));
     return false;
   }
   fh.Version = ident[EI_VERSION];
@@ -95,7 +94,7 @@ bool File::ParseFile(bela::error_code &ec) {
     fh.Machine = endian_cast(hdr.e_machine);
     fh.Entry = endian_cast(hdr.e_entry);
     if (auto version = endian_cast(hdr.e_version); version != static_cast<uint32_t>(fh.Version)) {
-      ec = bela::make_error_code(1, L"mismatched ELF version, got ", version, L" want ",
+      ec = bela::make_error_code(ErrGeneral, L"mismatched ELF version, got ", version, L" want ",
                                  static_cast<uint32_t>(fh.Version));
       return false;
     }
@@ -116,7 +115,7 @@ bool File::ParseFile(bela::error_code &ec) {
     fh.Machine = endian_cast(hdr.e_machine);
     fh.Entry = endian_cast(hdr.e_entry);
     if (auto version = endian_cast(hdr.e_version); version != static_cast<uint32_t>(fh.Version)) {
-      ec = bela::make_error_code(1, L"mismatched ELF version, got ", version, L" want ",
+      ec = bela::make_error_code(ErrGeneral, L"mismatched ELF version, got ", version, L" want ",
                                  static_cast<uint32_t>(fh.Version));
       return false;
     }
@@ -133,15 +132,15 @@ bool File::ParseFile(bela::error_code &ec) {
   }
   //
   if (shoff == 0 && shnum != 0) {
-    ec = bela::make_error_code(1, L"invalid ELF shnum for shoff=0 shnum=", shnum);
+    ec = bela::make_error_code(ErrGeneral, L"invalid ELF shnum for shoff=0 shnum=", shnum);
     return false;
   }
   if (shnum > 0 && shstrndx >= shnum) {
-    ec = bela::make_error_code(1, L"invalid ELF shstrndx ", shstrndx);
+    ec = bela::make_error_code(ErrGeneral, L"invalid ELF shstrndx ", shstrndx);
     return false;
   }
   if (phnum < 0 || phnum > 10000) {
-    ec = bela::make_error_code(1, L"invalid ELF phnum ", phnum);
+    ec = bela::make_error_code(ErrGeneral, L"invalid ELF phnum ", phnum);
     return false;
   }
   progs.resize(phnum);
@@ -180,7 +179,7 @@ bool File::ParseFile(bela::error_code &ec) {
     return true;
   }
   if (shnum < 0 || shnum > 10000) {
-    ec = bela::make_error_code(1, L"invalid ELF shnum ", shnum);
+    ec = bela::make_error_code(ErrGeneral, L"invalid ELF shnum ", shnum);
     return false;
   }
   sections.resize(shnum);

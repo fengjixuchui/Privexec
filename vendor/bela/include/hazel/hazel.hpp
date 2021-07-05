@@ -10,7 +10,7 @@
 #include "types.hpp"
 
 namespace hazel {
-
+using bela::ErrGeneral;
 // https://en.cppreference.com/w/cpp/utility/variant/visit
 // https://en.cppreference.com/w/cpp/utility/variant
 
@@ -101,6 +101,7 @@ public:
   bool LooksLikeZIP() const {
     return t == types::zip || t == types::docx || t == types::xlsx || t == types::pptx || t == types::ofd;
   }
+  bool ZeroExists() const { return zeroPosition != -1; }
 
 private:
   friend bool LookupFile(bela::File &fd, hazel_result &hr, bela::error_code &ec);
@@ -109,6 +110,7 @@ private:
   int64_t size_{bela::SizeUnInitialized};
   size_t align_len_{sizeof("description") - 1};
   types::hazel_types_t t{types::none};
+  int64_t zeroPosition{-1};
 };
 
 const wchar_t *LookupMIME(types::hazel_types_t t);

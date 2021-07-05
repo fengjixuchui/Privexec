@@ -159,7 +159,7 @@ public:
 private:
   const char *data_{nullptr};
   size_t size_{0};
-  uint32_t linkflags_;
+  uint32_t linkflags_{0};
   bool IsUnicode{false};
 };
 
@@ -243,7 +243,7 @@ status_t LookupShellLink(bela::MemView mv, hazel_result &hr) {
     offset += l + 2;
   }
 
-  hr.assign(types::shelllink, L"Windows Shortcut");
+  hr.assign(types::lnk, L"Windows Shortcut");
   std::vector<std::wstring> av;
   shl::FlagsToArray(flag, av);
   hr.append(L"Attribute", std::move(av));

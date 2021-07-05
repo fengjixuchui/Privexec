@@ -44,6 +44,9 @@ INT_PTR WINAPI App::WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
   return FALSE;
 }
 
+WCHAR placeholderText[] = L"Registry ACLs only support starts With: \"Registry::CLASSES_ROOT\", "
+                          L"\"Registry::CURRENT_USER\", \"Registry::MACHINE\", and \"Registry::USERS\".";
+
 bool App::Initialize(HWND window) {
   hWnd = window;
   title.Initialize(hWnd);
@@ -79,11 +82,16 @@ bool App::Initialize(HWND window) {
   appx.UpdateName(L"Privexec.AppContainer.Launcher");
   ::SetFocus(cmd.hInput);
   trace.hWindow = GetDlgItem(hWnd, IDE_APPEXEC_INFO);
-
-  // SetWindowLongPtr(trace.hInfo, GWL_EXSTYLE, 0);
-
   InitializeCapabilities();
-
+  hTip = CreateWindowEx(0, TOOLTIPS_CLASS, 0, WS_POPUP | TTS_ALWAYSTIP, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+                        CW_USEDEFAULT, hWnd, NULL, hInst, nullptr);
+  TOOLINFO toolInfo = {0};
+  toolInfo.cbSize = sizeof(toolInfo);
+  toolInfo.hwnd = hWnd;
+  toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+  toolInfo.uId = (UINT_PTR)appx.hAcl;
+  toolInfo.lpszText = placeholderText;
+  ::SendMessageW(hTip, TTM_ADDTOOL, 0, (LPARAM)&toolInfo);
   return true;
 }
 
@@ -162,19 +170,34 @@ std::vector<std::wstring_view> NewlineTokenize(std::wstring_view sv) {
   return output;
 }
 
-bool IsRegistryKey(std::wstring_view path) {
-  auto pv = bela::SplitPath(path);
-  if (pv.empty()) {
-    return false;
-  }
-  constexpr std::wstring_view keys[] = {L"HKEY_CLASSES_ROOT",  L"HKCR", L"HKEY_CURRENT_USER", L"HKCU",
-                                        L"HKEY_LOCAL_MACHINE", L"HKLM", L"HKEY_USERS",        L"HKU"};
-  for (auto k : keys) {
-    if (bela::EqualsIgnoreCase(k, pv[0])) {
-      return true;
+std::wstring_view makeSubRegistryKey(std::wstring_view path) {
+  constexpr std::wstring_view prefix = {L"Registry::"};
+  if (bela::StartsWithIgnoreCase(path, prefix)) {
+    if (path.size() > prefix.size() && bela::IsPathSeparator(path[prefix.size()])) {
+      return path.substr(prefix.size() + 1);
     }
+    return path.substr(prefix.size());
   }
-  return false;
+  return L"";
+}
+
+std::optional<std::wstring> MakeRegistryKey(std::wstring_view path) {
+  auto s = makeSubRegistryKey(path);
+  if (s.empty()) {
+    return std::nullopt;
+  }
+  auto sv = bela::SplitPath(s);
+  if (sv.empty()) {
+    return std::nullopt;
+  }
+  constexpr std::wstring_view localPrefix = L"LOCAL_";
+  constexpr std::wstring_view localHKeyPrefix = L"HKEY_LOCAL_";
+  if (bela::StartsWithIgnoreCase(sv[0], localPrefix)) {
+    sv[0].remove_prefix(localPrefix.size());
+  } else if (bela::StartsWithIgnoreCase(sv[0], localPrefix)) {
+    sv[0].remove_prefix(localHKeyPrefix.size());
+  }
+  return std::make_optional<std::wstring>(bela::StrJoin(sv, L"\\"));
 }
 
 bool App::AppLookupAcl(std::vector<std::wstring> &fsdir, std::vector<std::wstring> &registries) {
@@ -187,13 +210,13 @@ bool App::AppLookupAcl(std::vector<std::wstring> &fsdir, std::vector<std::wstrin
   auto dirs = NewlineTokenize(acl);
   for (auto d : dirs) {
     auto dir = bela::WindowsExpandEnv(d);
-    if (IsRegistryKey(dir)) {
-      trace.Append(L"Registry Access", dir);
-      registries.emplace_back(dir);
-    } else {
-      trace.Append(L"Fs Access", dir);
-      fsdir.emplace_back(dir);
+    if (auto reg = MakeRegistryKey(dir); reg && !reg->empty()) {
+      trace.Append(L"Registry Access", *reg);
+      registries.emplace_back(*reg);
+      continue;
     }
+    trace.Append(L"Fs Access", dir);
+    fsdir.emplace_back(dir);
   }
   return true;
 }

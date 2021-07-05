@@ -9,10 +9,8 @@ add_library(
   dos.cc
   duration.cc
   format.cc
-  int128.cc
   time.cc
-  timezone.cc
-  unscaledcycleclock.cc)
+  timezone.cc)
 
 target_link_libraries(belatime bela)
 

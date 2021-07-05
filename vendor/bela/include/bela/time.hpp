@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Copyright (c) 2020, Force Charlie
+// Copyright (C) 2021, Bela contributors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,12 +37,13 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include <bit>
 #include "base.hpp"
 
 #ifndef _WINSOCKAPI_
 struct timeval {
-  long tv_sec;  /* seconds */
-  long tv_usec; /* and microseconds */
+  long tv_sec{0};  /* seconds */
+  long tv_usec{0}; /* and microseconds */
 };
 #endif
 
@@ -50,7 +51,6 @@ namespace bela {
 
 class Duration; // Defined below
 class Time;     // Defined below
-class TimeZone; // Defined below
 
 namespace time_internal {
 int64_t IDivDuration(bool satq, Duration num, Duration den, Duration *rem);
@@ -647,12 +647,14 @@ template <std::intmax_t N> constexpr Duration FromInt64(int64_t v, std::ratio<1,
 constexpr Duration FromInt64(int64_t v, std::ratio<60>) {
   return (v <= (std::numeric_limits<int64_t>::max)() / 60 && v >= (std::numeric_limits<int64_t>::min)() / 60)
              ? MakeDuration(v * 60)
-             : v > 0 ? InfiniteDuration() : -InfiniteDuration();
+         : v > 0 ? InfiniteDuration()
+                 : -InfiniteDuration();
 }
 constexpr Duration FromInt64(int64_t v, std::ratio<3600>) {
   return (v <= (std::numeric_limits<int64_t>::max)() / 3600 && v >= (std::numeric_limits<int64_t>::min)() / 3600)
              ? MakeDuration(v * 3600)
-             : v > 0 ? InfiniteDuration() : -InfiniteDuration();
+         : v > 0 ? InfiniteDuration()
+                 : -InfiniteDuration();
 }
 
 // IsValidRep64<T>(0) is true if the expression `int64_t{std::declval<T>()}` is
@@ -709,9 +711,9 @@ constexpr Duration Hours(int64_t n) { return time_internal::FromInt64(n, std::ra
 constexpr bool operator<(Duration lhs, Duration rhs) {
   return time_internal::GetRepHi(lhs) != time_internal::GetRepHi(rhs)
              ? time_internal::GetRepHi(lhs) < time_internal::GetRepHi(rhs)
-             : time_internal::GetRepHi(lhs) == (std::numeric_limits<int64_t>::min)()
-                   ? time_internal::GetRepLo(lhs) + 1 < time_internal::GetRepLo(rhs) + 1
-                   : time_internal::GetRepLo(lhs) < time_internal::GetRepLo(rhs);
+         : time_internal::GetRepHi(lhs) == (std::numeric_limits<int64_t>::min)()
+             ? time_internal::GetRepLo(lhs) + 1 < time_internal::GetRepLo(rhs) + 1
+             : time_internal::GetRepLo(lhs) < time_internal::GetRepLo(rhs);
 }
 
 constexpr bool operator==(Duration lhs, Duration rhs) {
@@ -731,14 +733,13 @@ constexpr Duration operator-(Duration d) {
   // Finally we're in the case where rep_lo_ is non-zero, and we can borrow
   // a second's worth of ticks and avoid overflow (as negating int64_t-min + 1
   // is safe).
-  return time_internal::GetRepLo(d) == 0
-             ? time_internal::GetRepHi(d) == (std::numeric_limits<int64_t>::min)()
-                   ? InfiniteDuration()
-                   : time_internal::MakeDuration(-time_internal::GetRepHi(d))
-             : time_internal::IsInfiniteDuration(d)
-                   ? time_internal::OppositeInfinity(d)
-                   : time_internal::MakeDuration(time_internal::NegateAndSubtractOne(time_internal::GetRepHi(d)),
-                                                 time_internal::kTicksPerSecond - time_internal::GetRepLo(d));
+  return time_internal::GetRepLo(d) == 0 ? time_internal::GetRepHi(d) == (std::numeric_limits<int64_t>::min)()
+                                               ? InfiniteDuration()
+                                               : time_internal::MakeDuration(-time_internal::GetRepHi(d))
+         : time_internal::IsInfiniteDuration(d)
+             ? time_internal::OppositeInfinity(d)
+             : time_internal::MakeDuration(time_internal::NegateAndSubtractOne(time_internal::GetRepHi(d)),
+                                           time_internal::kTicksPerSecond - time_internal::GetRepLo(d));
 }
 
 constexpr Duration InfiniteDuration() {
@@ -771,7 +772,7 @@ constexpr Time FromTimeT(time_t t) { return time_internal::FromUnixDuration(Seco
 // Now()
 //
 // Returns the current time, expressed as an `absl::Time` absolute time value.
-bela::Time Now();
+Time Now();
 
 // GetCurrentTimeNanos()
 //
@@ -791,13 +792,39 @@ int64_t GetCurrentTimeNanos();
 void SleepFor(bela::Duration duration);
 
 // FromDosDateTime() convert dos time to bela::Time
-bela::Time FromDosDateTime(uint16_t dosDate, uint16_t dosTime);
+Time FromDosDateTime(uint16_t dosDate, uint16_t dosTime);
 
 // GetSystemTimePreciseAsFileTime  FILETIME
-inline bela::Time FromWindowsPreciseTime(uint64_t tick) {
-  constexpr auto tickPerSecond = 10'000'000ll;
+constexpr Time FromWindowsPreciseTime(uint64_t tick) {
   constexpr auto unixTimeStart = 116444736000000000ui64;
-  return bela::FromUnixMicros((tick - unixTimeStart) / 10);
+  return FromUnixMicros(static_cast<int64_t>((tick - unixTimeStart) / 10));
+}
+
+constexpr Time FromFileTime(FILETIME ft) {
+  // Need to bit_cast to fix alignment, then divide by 10 to convert
+  // 100-nanoseconds to microseconds. This only works on little-endian
+  // machines.
+  constexpr auto unixTimeStart = 116444736000000000ui64;
+  auto tick = std::bit_cast<int64_t, FILETIME>(ft);
+  return FromUnixMicros((tick - unixTimeStart) / 10);
+}
+
+struct time_parts {
+  int64_t sec{0};
+  uint32_t nsec{0};
+};
+
+constexpr time_parts Split(Time t) {
+  const auto d = time_internal::ToUnixDuration(t);
+  const int64_t rep_hi = time_internal::GetRepHi(d);
+  const uint32_t rep_lo = time_internal::GetRepLo(d);
+  return {rep_hi, static_cast<uint32_t>(rep_lo / time_internal::kTicksPerNanosecond)};
+}
+
+constexpr FILETIME ToFileTime(Time t) {
+  auto parts = bela::Split(t);
+  auto tick = (parts.sec + 11644473600ll) * 10000000 + parts.nsec / 100;
+  return {static_cast<DWORD>(tick), static_cast<DWORD>(tick >> 32)};
 }
 
 } // namespace bela

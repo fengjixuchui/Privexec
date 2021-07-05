@@ -14,23 +14,29 @@
 #include <string_view>
 #include <cstdlib>
 
-static bool isItaniumEncoding(const std::string_view MangledName) {
+static bool isItaniumEncoding(std::string_view MangledName) {
   size_t Pos = MangledName.find_first_not_of('_');
   // A valid Itanium encoding requires 1-4 leading underscores, followed by 'Z'.
   return Pos > 0 && Pos <= 4 && MangledName[Pos] == 'Z';
 }
 
+static bool isRustEncoding(std::string_view MangledName) {
+  return MangledName.size() >= 2 && MangledName[0] == '_' &&
+         MangledName[1] == 'R';
+}
+
 std::string llvm::demangle(const std::string_view MangledName) {
   char *Demangled;
-  if (isItaniumEncoding(MangledName)) {
+  if (isItaniumEncoding(MangledName))
     Demangled = itaniumDemangle(MangledName, nullptr, nullptr, nullptr);
-  } else {
-    Demangled = microsoftDemangle(MangledName, nullptr, nullptr, nullptr, nullptr);
-  }
+  else if (isRustEncoding(MangledName))
+    Demangled = rustDemangle(MangledName, nullptr, nullptr, nullptr);
+  else
+    Demangled = microsoftDemangle(MangledName, nullptr, nullptr,
+                                  nullptr, nullptr);
 
-  if (!Demangled) {
+  if (!Demangled)
     return std::string(MangledName);
-  }
 
   std::string Ret = Demangled;
   std::free(Demangled);

@@ -118,7 +118,6 @@ bool File::ParseFile(bela::error_code &ec) {
   if (!ReadAt(&dh, sizeof(DosHeader), 0, ec)) {
     return false;
   }
-  constexpr auto x = 0x3c;
 
   int64_t base = 0;
   if (bela::fromle(dh.e_magic) == IMAGE_DOS_SIGNATURE) {
@@ -128,8 +127,8 @@ bool File::ParseFile(bela::error_code &ec) {
       return false;
     }
     if (!(sign[0] == 'P' && sign[1] == 'E' && sign[2] == 0 && sign[3] == 0)) {
-      ec = bela::make_error_code(1, L"Invalid PE COFF file signature of ['", int(sign[0]), L"','", int(sign[1]), L"','",
-                                 int(sign[2]), L"','", int(sign[3]), L"']");
+      ec = bela::make_error_code(ErrGeneral, L"Invalid PE COFF file signature of ['", int(sign[0]), L"','",
+                                 int(sign[1]), L"','", int(sign[2]), L"','", int(sign[3]), L"']");
       return false;
     }
     base = signoff + 4;
@@ -151,7 +150,7 @@ bool File::ParseFile(bela::error_code &ec) {
     fromle(&oh);
   } else {
     if (!ReadAt(&oh, sizeof(OptionalHeader32), base + sizeof(FileHeader), ec)) {
-      ec = bela::make_error_code(1, L"pe: not a valid pe file ", ec.message);
+      ec = bela::make_error_code(ErrGeneral, L"pe: not a valid pe file ", ec.message);
       return false;
     }
     fromle(reinterpret_cast<OptionalHeader32 *>(&oh));
@@ -174,6 +173,9 @@ bool File::ParseFile(bela::error_code &ec) {
     sec.Header.NumberOfRelocations = sh.NumberOfRelocations;
     sec.Header.NumberOfLineNumbers = sh.NumberOfLineNumbers;
     sec.Header.Characteristics = sh.Characteristics;
+    if (auto sectionEnd = static_cast<int64_t>(sec.Header.Offset + sec.Header.Size); sectionEnd > overlayOffset) {
+      overlayOffset = sectionEnd;
+    }
     sections.emplace_back(std::move(sec));
   }
   for (auto &sec : sections) {
@@ -235,15 +237,15 @@ bool File::LookupExports(std::vector<ExportedSymbol> &exports, bela::error_code 
     return false;
   }
   auto N = exd->VirtualAddress - ds->Header.VirtualAddress;
-  std::string_view sv{sdata.data() + N, sdata.size() - N};
-  if (sv.size() < sizeof(IMAGE_EXPORT_DIRECTORY)) {
+  std::string_view sdv{sdata.data() + N, sdata.size() - N};
+  if (sdv.size() < sizeof(IMAGE_EXPORT_DIRECTORY)) {
     return true;
   }
   IMAGE_EXPORT_DIRECTORY ied;
   if constexpr (bela::IsLittleEndian()) {
-    memcpy(&ied, sv.data(), sizeof(IMAGE_EXPORT_DIRECTORY));
+    memcpy(&ied, sdv.data(), sizeof(IMAGE_EXPORT_DIRECTORY));
   } else {
-    auto cied = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY *>(sv.data());
+    auto cied = reinterpret_cast<const IMAGE_EXPORT_DIRECTORY *>(sdv.data());
     ied.Characteristics = bela::fromle(cied->Characteristics);
     ied.TimeDateStamp = bela::fromle(cied->TimeDateStamp);
     ied.MajorVersion = bela::fromle(cied->MajorVersion);
@@ -263,8 +265,8 @@ bool File::LookupExports(std::vector<ExportedSymbol> &exports, bela::error_code 
   exports.resize(ied.NumberOfNames);
   if (ied.AddressOfNameOrdinals > ds->Header.VirtualAddress &&
       ied.AddressOfNameOrdinals < ds->Header.VirtualAddress + ds->Header.VirtualSize) {
-    auto N = ied.AddressOfNameOrdinals - ds->Header.VirtualAddress;
-    auto sv = std::string_view{sdata.data() + N, sdata.size() - N};
+    auto L = ied.AddressOfNameOrdinals - ds->Header.VirtualAddress;
+    auto sv = std::string_view{sdata.data() + L, sdata.size() - L};
     if (sv.size() > exports.size() * 2) {
       for (size_t i = 0; i < exports.size(); i++) {
         exports[i].Ordinal = bela::cast_fromle<uint16_t>(sv.data() + i * 2) + ordinalBase;
@@ -285,9 +287,9 @@ bool File::LookupExports(std::vector<ExportedSymbol> &exports, bela::error_code 
   }
   if (ied.AddressOfFunctions > ds->Header.VirtualAddress &&
       ied.AddressOfFunctions < ds->Header.VirtualAddress + ds->Header.VirtualSize) {
-    auto N = ied.AddressOfFunctions - ds->Header.VirtualAddress;
+    auto L = ied.AddressOfFunctions - ds->Header.VirtualAddress;
     for (size_t i = 0; i < exports.size(); i++) {
-      auto sv = std::string_view{sdata.data() + N, sdata.size() - N};
+      auto sv = std::string_view{sdata.data() + L, sdata.size() - L};
       if (sv.size() > static_cast<size_t>(exports[i].Ordinal * 4 + 4)) {
         exports[i].Address =
             bela::cast_fromle<uint32_t>(sv.data() + static_cast<int>(exports[i].Ordinal - ordinalBase) * 4);
@@ -333,13 +335,13 @@ bool File::LookupDelayImports(FunctionTable::symbols_map_t &sm, bela::error_code
     return false;
   }
   auto N = delay->VirtualAddress - ds->Header.VirtualAddress;
-  std::string_view sv{sdata.data() + N, sdata.size() - N};
+  std::string_view sdv{sdata.data() + N, sdata.size() - N};
 
   constexpr size_t dslen = sizeof(IMAGE_DELAYLOAD_DESCRIPTOR);
   std::vector<ImportDelayDirectory> ida;
-  while (sv.size() > dslen) {
-    const auto dt = reinterpret_cast<const IMAGE_DELAYLOAD_DESCRIPTOR *>(sv.data());
-    sv.remove_prefix(dslen);
+  while (sdv.size() > dslen) {
+    const auto dt = reinterpret_cast<const IMAGE_DELAYLOAD_DESCRIPTOR *>(sdv.data());
+    sdv.remove_prefix(dslen);
     ImportDelayDirectory id;
     id.Attributes = bela::fromle(dt->Attributes.AllAttributes);
     id.DllNameRVA = bela::fromle(dt->DllNameRVA);
@@ -361,9 +363,9 @@ bool File::LookupDelayImports(FunctionTable::symbols_map_t &sm, bela::error_code
         dt.ImportNameTableRVA > ds->Header.VirtualAddress + ds->Header.VirtualSize) {
       break;
     }
-    uint32_t N = dt.ImportNameTableRVA - ds->Header.VirtualAddress;
+    uint32_t L = dt.ImportNameTableRVA - ds->Header.VirtualAddress;
 
-    std::string_view d{sdata.data() + N, sdata.size() - N};
+    std::string_view d{sdata.data() + L, sdata.size() - L};
     std::vector<Function> functions;
     while (d.size() >= ptrsize) {
       if (is64bit) {

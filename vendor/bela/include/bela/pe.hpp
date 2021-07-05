@@ -13,6 +13,8 @@
 #include "match.hpp"
 
 namespace bela::pe {
+constexpr long ErrNoOverlay = 0xFF01;
+constexpr long LimitOverlaySize = 64 * 1024 * 1024;
 enum class Machine : uint16_t {
   UNKNOWN = 0,
   TARGET_HOST = 0x0001, // Useful for indicating we want to interact with the
@@ -272,7 +274,7 @@ struct ExportedSymbol {
 struct Function {
   Function(std::string &&name, int index = 0, int ordinal = 0)
       : Name(std::move(name)), Index(index), Ordinal(ordinal) {}
-  Function(const std::string_view &name, int index = 0, int ordinal = 0) : Name(name), Index(index), Ordinal(ordinal) {}
+  Function(const std::string &name, int index = 0, int ordinal = 0) : Name(name), Index(index), Ordinal(ordinal) {}
   std::string Name;
   int Index{0};
   int Ordinal{0};
@@ -296,7 +298,7 @@ using symbols_map_t = bela::flat_hash_map<std::string, std::vector<Function>>;
 class File {
 private:
   bool ParseFile(bela::error_code &ec);
-  bool PositionAt(uint64_t pos, bela::error_code &ec) const {
+  bool PositionAt(int64_t pos, bela::error_code &ec) const {
     LARGE_INTEGER oli{0};
     if (SetFilePointerEx(fd, *reinterpret_cast<LARGE_INTEGER *>(&pos), &oli, SEEK_SET) != TRUE) {
       ec = bela::make_system_error_code(L"SetFilePointerEx: ");
@@ -331,7 +333,7 @@ private:
     return true;
   }
   // ReadAt ReadFull
-  bool ReadAt(void *buffer, size_t len, uint64_t pos, bela::error_code &ec) const {
+  bool ReadAt(void *buffer, size_t len, int64_t pos, bela::error_code &ec) const {
     if (!PositionAt(pos, ec)) {
       return false;
     }
@@ -375,6 +377,7 @@ public:
   bool LookupFunctionTable(FunctionTable &ft, bela::error_code &ec) const;
   bool LookupSymbols(std::vector<Symbol> &syms, bela::error_code &ec) const;
   bool LookupClrVersion(std::string &ver, bela::error_code &ec) const;
+  bool LookupOverlay(std::vector<char> &overlayData, bela::error_code &ec, int64_t limitsize = LimitOverlaySize) const;
   const FileHeader &Fh() const { return fh; }
   const OptionalHeader64 *Oh64() const { return &oh; }
   const OptionalHeader32 *Oh32() const { return reinterpret_cast<const OptionalHeader32 *>(&oh); }
@@ -396,6 +399,8 @@ public:
     return ParseFile(ec);
   }
   int64_t Size() const { return size; }
+  int64_t OverlayOffset() const { return overlayOffset; }
+  int64_t OverlayLength() const { return size - overlayOffset; }
 
 private:
   HANDLE fd{INVALID_HANDLE_VALUE};
@@ -406,6 +411,7 @@ private:
   OptionalHeader64 oh;
   std::vector<Section> sections;
   StringTable stringTable;
+  int64_t overlayOffset{-1};
   bool is64bit{false};
   bool needClosed{false};
 };

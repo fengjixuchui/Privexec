@@ -52,6 +52,7 @@ const wchar_t *LookupMIME(types::hazel_types_t t) {
       {types::rar, L"application/vnd.rar"},
       {types::gz, L"application/gzip"},
       {types::bz2, L"application/x-bzip2"},
+      {types::zstd, L"application/x-zstd"},
       {types::p7z, L"application/x-7z-compressed"},
       {types::xz, L"application/x-xz"},
       {types::pdf, L"application/pdf"},
@@ -60,7 +61,7 @@ const wchar_t *LookupMIME(types::hazel_types_t t) {
       {types::eot, L"application/octet-stream"},
       {types::ps, L"application/postscript"},
       {types::sqlite, L"application/vnd.sqlite3"},
-      {types::nes, L"application/x-nintendo-nes-rom"},
+      {types::nes, L"application/x-nes-rom"},
       {types::crx, L"application/x-google-chrome-extension"},
       {types::deb, L"application/vnd.debian.binary-package"},
       {types::lz, L"application/x-lzip"},
@@ -119,7 +120,7 @@ const wchar_t *LookupMIME(types::hazel_types_t t) {
       {types::gitpack, L"application/x-git-pack"},
       {types::gitpkindex, L"application/x-git-pack-index"},
       {types::gitmidx, L"application/x-git-pack-multi-index"},
-      {types::shelllink, L"application/vnd.microsoft.shelllink"}, // Windows shelllink
+      {types::lnk, L"application/x-ms-shortcut"}, // .lnk application/x-ms-shortcut
       {types::iso, L"application/x-iso9660-image"},
   };
   //

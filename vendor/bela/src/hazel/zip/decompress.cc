@@ -3,8 +3,7 @@
 #include <bela/endian.hpp>
 
 namespace hazel::zip {
-
-bool Reader::Decompress(const File &file, const Receiver &receiver, bela::error_code &ec) const {
+bool Reader::Decompress(const File &file, const Writer &w, bela::error_code &ec) const {
   uint8_t buf[fileHeaderLen];
   if (!ReadAt(buf, fileHeaderLen, file.position, ec)) {
     return false;
@@ -24,16 +23,16 @@ bool Reader::Decompress(const File &file, const Receiver &receiver, bela::error_
   switch (file.method) {
   case ZIP_STORE: {
     uint8_t buffer[4096];
-    auto compressedSize = file.compressedSize;
-    while (compressedSize != 0) {
-      auto minsize = (std::min)(compressedSize, static_cast<uint64_t>(sizeof(buffer)));
+    auto cSize = file.compressedSize;
+    while (cSize != 0) {
+      auto minsize = (std::min)(cSize, static_cast<uint64_t>(sizeof(buffer)));
       if (!ReadFull(buffer, static_cast<size_t>(minsize), ec)) {
         return false;
       }
-      if (!receiver(buffer, static_cast<size_t>(minsize))) {
+      if (!w(buffer, static_cast<size_t>(minsize))) {
         return false;
       }
-      compressedSize -= minsize;
+      cSize -= minsize;
     }
 
   } break;
@@ -45,12 +44,14 @@ bool Reader::Decompress(const File &file, const Receiver &receiver, bela::error_
     break;
   case ZIP_LZMA2:
     break;
+  case ZIP_PPMD:
+    break;
   case ZIP_XZ:
     break;
   case ZIP_BZIP2:
     break;
   default:
-    ec = bela::make_error_code(1, L"support zip method ", file.method);
+    ec = bela::make_error_code(ErrGeneral, L"support zip method ", file.method);
     return false;
   }
   return true;

@@ -421,12 +421,6 @@ bool IsSwf(const uint8_t *buf, size_t size) {
 
 /// Magic only
 status_t lookup_archivesinternal(bela::MemView mv, hazel_result &hr) {
-  // MSI // 0x4d434923
-  constexpr const uint8_t msiMagic[] = {0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1};
-  if (mv.StartsWith(msiMagic)) {
-    hr.assign(types::msi, L"Windows Installer packages");
-    return Found;
-  }
   // DEB
   constexpr const uint8_t debMagic[] = {0x21, 0x3C, 0x61, 0x72, 0x63, 0x68, 0x3E, 0x0A, 0x64, 0x65, 0x62,
                                         0x69, 0x61, 0x6E, 0x2D, 0x62, 0x69, 0x6E, 0x61, 0x72, 0x79};
@@ -441,9 +435,13 @@ status_t lookup_archivesinternal(bela::MemView mv, hazel_result &hr) {
     return Found;
   }
   constexpr const uint8_t crxMagic[] = {0x43, 0x72, 0x32, 0x34};
-  if (mv.StartsWith(crxMagic)) {
-    hr.assign(types::crx, L"Chrome Extension");
-    return Found;
+  if (mv.StartsWith(crxMagic) && hr.ZeroExists()) {
+    uint32_t version = {0};
+    if (auto pv = mv.bit_cast(&version, 4); pv != nullptr) {
+      hr.assign(types::crx, L"Chrome Extension");
+      hr.append(L"Version", bela::fromle(version));
+      return Found;
+    }
   }
   // XZ
   constexpr const uint8_t xzMagic[] = {0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00};
@@ -453,35 +451,51 @@ status_t lookup_archivesinternal(bela::MemView mv, hazel_result &hr) {
   }
   // GZ
   constexpr const uint8_t gzMagic[] = {0x1F, 0x8B, 0x8};
-  if (mv.StartsWith(gzMagic)) {
+  if (mv.StartsWith(gzMagic) && hr.ZeroExists()) {
     hr.assign(types::gz, L"GZ archive data");
     return Found;
   }
   // BZ2
   // https://github.com/dsnet/compress/blob/master/doc/bzip2-format.pdf
   constexpr const uint8_t bz2Magic[] = {0x42, 0x5A, 0x68};
-  if (mv.StartsWith(bz2Magic)) {
+  if (mv.StartsWith(bz2Magic) && hr.ZeroExists()) {
     hr.assign(types::bz2, L"BZ2 archive data");
     return Found;
   }
+  auto zstdmagic = bela::cast_fromle<uint32_t>(mv.data());
+  if (zstdmagic == 0xFD2FB528U || (zstdmagic & 0xFFFFFFF0) == 0x184D2A50) {
+    hr.assign(types::zstd, L"ZSTD archive data");
+    return Found;
+  }
 
-  // NES
+  // https://wiki.nesdev.com/w/index.php/UNIF
+  // UNIF
   constexpr const uint8_t nesMagic[] = {0x41, 0x45, 0x53, 0x1A};
-  if (mv.StartsWith(nesMagic)) {
+  if (mv.StartsWith(nesMagic) && hr.ZeroExists()) {
     hr.assign(types::nes, L"Nintendo NES ROM");
     return Found;
+  }
+  // Universal NES Image Format
+  constexpr const uint8_t unifMagic[] = {'U', 'N', 'I', 'F'};
+  if (mv.size() > 40 && mv.StartsWith(unifMagic)) {
+    uint32_t v = 0;
+    if (auto pv = mv.bit_cast(&v, 4); pv != nullptr && mv[8] == 0x0 && mv[9] == 0) {
+      hr.assign(types::nes, L"Universal NES Image Format");
+      hr.append(L"Version", bela::fromle(v));
+      return Found;
+    }
   }
 
   // AR
   // constexpr const uint8_t arMagic[]={0x21,0x3c,0x61,0x72,0x63,0x68,0x3E};
   constexpr const uint8_t zMagic[] = {0x1F, 0xA0, 0x1F, 0x9D};
-  if (mv.StartsWith(zMagic)) {
+  if (mv.StartsWith(zMagic) && hr.ZeroExists()) {
     hr.assign(types::z, L"X compressed archive data");
     return Found;
   }
 
   constexpr const uint8_t lzMagic[] = {0x4C, 0x5A, 0x49, 0x50};
-  if (mv.StartsWith(lzMagic)) {
+  if (mv.StartsWith(lzMagic) && hr.ZeroExists()) {
     hr.assign(types::lz, L"LZ archive data");
     return Found;
   }
